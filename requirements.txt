@@ -11,3 +11,6 @@ transformers
 
 optuna
 wandb
+
+python-dotenv
+tqdm
