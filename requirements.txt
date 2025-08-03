@@ -4,3 +4,10 @@ matplotlib
 seaborn
 pathlib 
 wordcloud
+
+torch
+scikit-learn
+transformers
+
+optuna
+wandb
