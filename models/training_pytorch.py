@@ -22,7 +22,7 @@ def early_stop_check(patience, best_val_accuracy, best_val_accuracy_epoch, curre
     return best_val_accuracy, best_val_accuracy_epoch, early_stop_flag
 
 
-def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs, patience, trial,device):
+def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs, patience, trial,device,project_name):
     best_val_accuracy = 0.0
     best_val_accuracy_epoch = 0
     early_stop_flag = False
@@ -112,7 +112,9 @@ def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, cri
 
     #NOT SURE IF WE SHOULD CHANGE IT'S LOCATION
     if best_model_state is not None: # Save the best model as a .pt file
-        torch.save(best_model_state, f"best_model_trial_{trial.number}.pt")
+        if not os.path.exists(f"results/{project_name}"):
+            os.makedirs(f"results/{project_name}")
+        torch.save(best_model_state, f"results/{project_name}/best_model_trial_{trial.number}.pt")
 
     return best_val_accuracy
 
@@ -163,7 +165,7 @@ def objective(trial, tokenizer, model_name, model, base_attr, project_name, trai
         name=f"{project_name}_{training_type}_trial_{trial.number}") # The name that will be saved in the W&B platform
 
     # Train the model and get the best validation accuracy
-    best_val_accuracy = train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs=20, patience=patience, trial=trial,device=device)
+    best_val_accuracy = train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs=20, patience=patience, trial=trial,device=device,project_name=project_name)
 
     wandb.finish() # Finish the Weights & Biases run
     

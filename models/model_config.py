@@ -17,5 +17,12 @@ model_configs = {
         "tokenizer_class": BertTokenizer,
         "base_attr": "bert",
         "max_length": 128  ##critical for covidbert
-    }
+    },
+    "roberta": {
+        "model_name": "roberta-base",
+        "model_class": RobertaForSequenceClassification,
+        "tokenizer_class": RobertaTokenizer,
+        "base_attr": "roberta",
+        "max_length": 512 # critical for roberta
+    },
 }

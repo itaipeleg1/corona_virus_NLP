@@ -72,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument("--training_type", type=str, default="pytorch", help="Training type tag (e.g. pytorch / HF)")
 
     args = parser.parse_args()
-    model_keys = ["bertweet", "covidbert"]
+    model_keys = ["roberta","bertweet", "covidbert"]
     training_types = ["pytorch", "HF"]
 
     for model_key in model_keys:

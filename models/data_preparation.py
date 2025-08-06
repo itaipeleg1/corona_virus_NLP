@@ -2,7 +2,6 @@
 import pandas as pd
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer
-
 from sklearn.preprocessing import LabelEncoder
 from config import DATA_DIR
 import torch
