@@ -1,4 +1,4 @@
-from transformers import Trainer, TrainingArguments, EarlyStoppingCallback
+from transformers import Trainer, TrainingArguments, EarlyStoppingCallback, AutoConfig
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 import torch
 import wandb
@@ -13,10 +13,11 @@ def compute_metrics(pred):
     return {
         'accuracy': acc,
         'f1': f1,
+        'recall': recall,
         'precision': precision,
     }
 
-def objective_HF(trial, tokenizer, model_name, model, base_attr, project_name, training_type, max_length):
+def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_name, training_type, max_length):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Hyperparameter suggestions - WE SHOULD ADD MORE HYPERPARAMETERS HERE
     learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-3)
@@ -24,12 +25,23 @@ def objective_HF(trial, tokenizer, model_name, model, base_attr, project_name, t
     patience = trial.suggest_int("patience", 7, 10)
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
     num_layers = trial.suggest_int("num_layers", 1, 3, step=1)
+    dropout = trial.suggest_float("dropout_rate", 0.1, 0.5)
+
+    #build the model:
+    config = AutoConfig.from_pretrained(
+    model_name,
+    num_labels=5,
+    hidden_dropout_prob=dropout,
+    attention_probs_dropout_prob=dropout
+    )
+
+    model = model_class.from_pretrained(model_name, config=config).to(device)
 
     # Freeze layers if base_attr is valid
-    base_model = getattr(model, base_attr, None)
-    for param in base_model.parameters():
+    
+    for param in base_attr.parameters():
         param.requires_grad = False
-    for param in base_model.encoder.layer[-num_layers:].parameters():
+    for param in base_attr.encoder.layer[-num_layers:].parameters():
         param.requires_grad = True
 
     # Prepare datasets

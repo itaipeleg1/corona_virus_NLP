@@ -22,10 +22,9 @@ def main(study_name: str, model_key: str, training_type: str):
     wandb.login(key=os.getenv("WANDB_API_KEY"))
 
     # Initialize model and tokenizer
-    tokenizer = tokenizer_class.from_pretrained(model_name)
-    model = model_class.from_pretrained(model_name, num_labels=5)
+    tokenizer = tokenizer_class.from_pretrained(model_name)    
+ 
 
-    
     # Create Optuna study
     study = optuna.create_study(study_name=study_name, direction="maximize")
 
@@ -36,7 +35,7 @@ def main(study_name: str, model_key: str, training_type: str):
                 trial=trial,
                 tokenizer=tokenizer,
                 model_name=model_name,
-                model=model,
+                model_class=model_class,
                 base_attr=base_attr,
                 project_name=study_name,
                 training_type=training_type,
@@ -50,7 +49,7 @@ def main(study_name: str, model_key: str, training_type: str):
                 trial=trial,
                 tokenizer=tokenizer,
                 model_name=model_name,
-                model=model,
+                model_class=model_class
                 base_attr=base_attr,
                 project_name=study_name,
                 training_type=training_type,
