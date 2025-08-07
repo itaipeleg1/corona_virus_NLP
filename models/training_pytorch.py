@@ -100,7 +100,7 @@ def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, cri
         wandb.log({ #log == logging of the training process (e.g. results) - will be done each epoch
             "Epoch": epoch,
             "Train Loss": train_loss,
-            "Train Accuracy": train_accuracy,
+           "Train Accuracy": train_accuracy,
             "Validation Loss": val_loss,
             "Validation Accuracy": val_accuracy,
             "Validation Precision": val_precision,
