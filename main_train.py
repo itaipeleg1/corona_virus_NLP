@@ -49,7 +49,7 @@ def main(study_name: str, model_key: str, training_type: str):
                 trial=trial,
                 tokenizer=tokenizer,
                 model_name=model_name,
-                model_class=model_class
+                model_class=model_class,
                 base_attr=base_attr,
                 project_name=study_name,
                 training_type=training_type,
@@ -72,12 +72,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     model_keys = ["bertweet"]
-    training_types = ["pytorch", "HF"]
+    training_types = ["pytorch"]
 
     for model_key in model_keys:
         for training_type in training_types:
             print(f"Running study for model: {model_key}, training type: {training_type}")
-            args.study_name = f"test_no_atts_emojis"
+            args.study_name = f"run_two_{model_key}_{training_type}"
             args.model_key = model_key
             args.training_type = training_type
             # Call the main function with the current model key and training type

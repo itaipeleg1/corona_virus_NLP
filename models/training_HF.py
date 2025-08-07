@@ -38,14 +38,17 @@ def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_n
     model = model_class.from_pretrained(model_name, config=config).to(device)
 
     # Freeze layers if base_attr is valid
-    
-    for param in base_attr.parameters():
+    base_model = getattr(model, base_attr, None)
+    for param in base_model.parameters():
         param.requires_grad = False
-    for param in base_attr.encoder.layer[-num_layers:].parameters():
+    for param in base_model.encoder.layer[-num_layers:].parameters():
         param.requires_grad = True
 
     # Prepare datasets
     train_dataset, eval_dataset, _ = data_preparation.prepare_dataset(tokenizer, max_length)
+
+    #CHANGE AND ADD STRATIFIED K FOLD###
+
 
     # Configure W&B
     wandb.init(project=project_name,
