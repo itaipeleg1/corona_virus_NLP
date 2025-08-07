@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torch import nn, optim
+from transformers import AutoConfig
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 import optuna
 import wandb
@@ -120,7 +121,7 @@ def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, cri
 
 
 # Objective Function for Optuna
-def objective(trial, tokenizer, model_name, model, base_attr, project_name, training_type,max_length):
+def objective(trial, tokenizer, model_name, model_class, base_attr, project_name, training_type,max_length):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Hyperparameter suggestions - WE SHOULD ADD MORE HYPERPARAMETERS HERE
     learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-3)
@@ -128,22 +129,33 @@ def objective(trial, tokenizer, model_name, model, base_attr, project_name, trai
     patience = trial.suggest_int("patience", 7, 10)
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
     num_layers = trial.suggest_int("num_layers", 1, 3, step=1)
-    
+    dropout = trial.suggest_float("dropout_rate", 0.1, 0.5)
+
     # Create the dataset and dataloaders
 
-    train_dataset, eval_dataset,_ = data_preparation.prepare_dataset(tokenizer,max_length)
+    #loading the dataset
+    train_dataset, _ = data_preparation.prepare_dataset(tokenizer,max_length)
+    #using stratified kfold for balanced splits:
+    ###MISSSING#####
+
+
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True) # insert into a DataLoader
     val_loader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=False) # insert into a DataLoader
 
-    model = model.to(device) # we initialize every model outside the objective function
+    # build the model:
+    config = AutoConfig.from_pretrained(
+    model_name,
+    num_labels=5,
+    hidden_dropout_prob=dropout,
+    attention_probs_dropout_prob=dropout
+    )
 
-    base_model = getattr(model, base_attr, None)
-    if base_model is None:
-        raise ValueError(f"Model does not have base attribute '{base_attr}'")
+    model = model_class.from_pretrained(model_name, config=config).to(device)
 
-    for param in base_model.parameters():
+    
+    for param in base_attr.parameters():
         param.requires_grad = False
-    for param in base_model.encoder.layer[-num_layers:].parameters():
+    for param in base_attr.encoder.layer[-num_layers:].parameters():
         param.requires_grad = True
 
     # Define optimizer and loss function

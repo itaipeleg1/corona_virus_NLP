@@ -41,24 +41,12 @@ class CovidTweetDataset(Dataset): # Dataset Class
 
 def load_dataframes():
     train_df = pd.read_csv(DATA_DIR/"processed"/ "train_data.csv")
-    val_df = pd.read_csv(DATA_DIR/"processed"/ "eval_data.csv")
     test_df = pd.read_csv(DATA_DIR/"processed"/ "test_data.csv")
-    return train_df, val_df, test_df
-
-def encode_labels(dataframe):
-    # Initialize the LabelEncoder
-    le = LabelEncoder()
-    # Fit and transform the 'Sentiment' column
-    dataframe['Sentiment'] = le.fit_transform(dataframe['Sentiment'])
-    return dataframe
+    return train_df, test_df
 
 
 def prepare_dataset(tokenizer,max_length):
-    train_df, val_df, test_df = load_dataframes()
-    train_df = encode_labels(train_df)
-    val_df = encode_labels(val_df)
-    test_df = encode_labels(test_df)
+    train_df, test_df = load_dataframes()
     train_ds = CovidTweetDataset(train_df, tokenizer, max_length)
-    val_ds = CovidTweetDataset(val_df, tokenizer, max_length)
     test_ds = CovidTweetDataset(test_df, tokenizer, max_length)
-    return train_ds, val_ds, test_ds
+    return train_ds, test_ds
