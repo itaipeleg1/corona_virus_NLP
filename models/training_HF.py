@@ -1,14 +1,19 @@
 from transformers import Trainer, TrainingArguments, EarlyStoppingCallback, AutoConfig
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from sklearn.model_selection import StratifiedKFold
+import optuna
 import torch
+from torch.utils.data import Subset
+import numpy as np
 import wandb
 import os
 from models import data_preparation
+from models import WeightedLossTrainer
 
 def compute_metrics(pred):
     labels = pred.label_ids
     preds = pred.predictions.argmax(-1)
-    precision, recall, f1, _ = precision_recall_fscore_support(labels, preds, average='weighted')
+    precision, recall, f1, _ = precision_recall_fscore_support(labels, preds, average='weighted', zero_division=0)
     acc = accuracy_score(labels, preds)
     return {
         'accuracy': acc,
@@ -26,29 +31,8 @@ def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_n
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
     num_layers = trial.suggest_int("num_layers", 1, 3, step=1)
     dropout = trial.suggest_float("dropout_rate", 0.1, 0.5)
-
-    #build the model:
-    config = AutoConfig.from_pretrained(
-    model_name,
-    num_labels=5,
-    hidden_dropout_prob=dropout,
-    attention_probs_dropout_prob=dropout
-    )
-
-    model = model_class.from_pretrained(model_name, config=config).to(device)
-
-    # Freeze layers if base_attr is valid
-    base_model = getattr(model, base_attr, None)
-    for param in base_model.parameters():
-        param.requires_grad = False
-    for param in base_model.encoder.layer[-num_layers:].parameters():
-        param.requires_grad = True
-
-    # Prepare datasets
-    train_dataset, eval_dataset, _ = data_preparation.prepare_dataset(tokenizer, max_length)
-
-    #CHANGE AND ADD STRATIFIED K FOLD###
-
+    ext_neg_weight = trial.suggest_float("ext_neg_weight", 1.0, 3.0)
+    ext_pos_weight = trial.suggest_float("ext_pos_weight", 1.0, 3.0)
 
     # Configure W&B
     wandb.init(project=project_name,
@@ -60,37 +44,97 @@ def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_n
         "num_layers": num_layers,
         "architecture": model_name,
         "training_type": training_type,
-        "dataset": "corona_virus_NLP"}, 
+        "dropout": dropout,
+        "ext_neg_weight": ext_neg_weight,
+        "ext_pos_weight": ext_pos_weight
+    },
         name=f"{project_name}_{training_type}_trial_{trial.number}") # The name that will be saved in the W&B platform
 
-    # Hugging Face TrainingArguments
-    training_args = TrainingArguments(
-        output_dir=f"./results/{project_name}_{training_type}_trial_{trial.number}",
-        eval_strategy="epoch",
-        save_strategy="epoch",
-        learning_rate=learning_rate,
-        per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
-        num_train_epochs=20,
-        weight_decay=weight_decay,
-        load_best_model_at_end=True,
-        metric_for_best_model="accuracy",
-        report_to=["wandb"],
-        logging_steps=10,
-        save_total_limit=1
-    )
+    class_weights = torch.tensor([ext_neg_weight, 1.0, 1.0, 1.0, ext_pos_weight], dtype=torch.float).to(device)
 
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
-        compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=patience)]
-    )
+    # Prepare datasets
+    train_dataset, _, labels = data_preparation.prepare_dataset(tokenizer, max_length)
 
-    trainer.train()
-    metrics = trainer.evaluate()
+    #CHANGE AND ADD STRATIFIED K FOLD###
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    fold_val_F1_scores = []
+    best_model_across_folds = None  # for saving the best model across all folds
+    best_val_F1_across_folds = -1.0
+    
+    for fold, (train_idx, val_idx) in enumerate(kf.split(train_dataset, labels)):
+        train_subset = Subset(train_dataset, train_idx)
+        eval_subset = Subset(train_dataset, val_idx)
+
+        #build the model:
+        config = AutoConfig.from_pretrained(
+        model_name,
+        num_labels=5,
+        hidden_dropout_prob=dropout,
+        attention_probs_dropout_prob=dropout
+        )
+
+        model = model_class.from_pretrained(model_name, config=config).to(device)
+
+        # Freeze layers if base_attr is valid
+        base_model = getattr(model, base_attr, None)
+        for param in base_model.parameters():
+            param.requires_grad = False
+        for param in base_model.encoder.layer[-num_layers:].parameters():
+            param.requires_grad = True
+
+    
+        # Hugging Face TrainingArguments
+        training_args = TrainingArguments(
+            output_dir=f"./results/{project_name}_{training_type}_trial_{trial.number}",
+            eval_strategy="epoch",
+            save_strategy="epoch",
+            learning_rate=learning_rate,
+            per_device_train_batch_size=batch_size,
+            per_device_eval_batch_size=batch_size,
+            num_train_epochs=30,
+            weight_decay=weight_decay,
+            load_best_model_at_end=True,
+            metric_for_best_model="f1",
+            report_to=["wandb"],
+            logging_steps=10,
+            save_total_limit=1
+        )
+
+        # we initialize the Trainer with our custom WeightedLossTrainer
+        trainer = WeightedLossTrainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_subset,
+            eval_dataset=eval_subset,
+            compute_metrics=compute_metrics,
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=patience)], #adding our custom callback with training metrics
+            class_weights=class_weights # our class weights
+        )
+
+        #training the model
+        trainer.train()
+ 
+        #evaluating the model on validation set
+        metrics = trainer.evaluate()
+        wandb.log({
+            f"fold_{fold}/Validation Accuracy": metrics["eval_accuracy"],
+            f"fold_{fold}/Validation F1": metrics["eval_f1"],
+            f"fold_{fold}/Validation Precision": metrics["eval_precision"],
+            f"fold_{fold}/Validation Recall": metrics["eval_recall"]
+        })
+
+        # save best model
+        if metrics["eval_f1"] > best_val_F1_across_folds:
+                best_val_F1_across_folds = metrics["eval_f1"]
+                best_model_across_folds = model.state_dict()
+                best_model_fold = fold  # track which fold it was
+
+    # Save best model after loop
+    if best_model_across_folds is not None:
+        os.makedirs(f"results/{project_name}", exist_ok=True)
+        torch.save(best_model_across_folds, f"results/{project_name}/best_model_trial_{trial.number}_fold_{best_model_fold}.pt")
+    wandb.log({"Best Validation F1 across folds": best_val_F1_across_folds})    
     wandb.finish()
 
-    return metrics["eval_accuracy"]
+
+    return best_val_F1_across_folds

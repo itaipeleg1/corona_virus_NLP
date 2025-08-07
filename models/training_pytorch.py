@@ -3,7 +3,6 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from torch import nn, optim
 from transformers import AutoConfig
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
-from sklearn.utils.class_weight import compute_class_weight
 from sklearn.model_selection import StratifiedKFold
 import optuna
 import wandb
@@ -30,7 +29,10 @@ def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, cri
     best_val_F1_score = 0.0
     best_val_F1_epoch = 0
     early_stop_flag = False
-    best_model_state = None
+
+    
+    all_train_labels = []
+    all_train_preds = []
 
     for epoch in range(1, epochs + 1):
 
@@ -57,9 +59,13 @@ def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, cri
             total_train_samples += input_ids.size(0)
             correct_train_predictions += (logits.argmax(dim=1) == labels).sum().item()
 
+            all_train_labels.extend(labels.cpu().numpy())
+            all_train_preds.extend(logits.argmax(dim=1).cpu().numpy())
+
         train_loss /= total_train_samples
         train_accuracy = correct_train_predictions / total_train_samples
-
+        train_f1 = f1_score(all_train_labels, all_train_preds, average='weighted')
+        
         ###  Validation loop  ###
         model.eval() # Enable evaluation mode
         val_loss = 0.0
@@ -106,6 +112,7 @@ def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, cri
             "Epoch": epoch,
             f"fold_{fold}/Train Loss": train_loss,
             f"fold_{fold}/Train Accuracy": train_accuracy,
+            f"fold_{fold}/Train F1": train_f1,
             f"fold_{fold}/Validation Loss": val_loss,
             f"fold_{fold}/Validation Accuracy": val_accuracy,
             f"fold_{fold}/Validation Precision": val_precision,
@@ -115,12 +122,6 @@ def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, cri
 
         if early_stop_flag:  # Checks whether the early stopping condition has been met, as indicated by the early_stop_flag
             break # Exits the training loop immediately if the early stopping condition is satisfied
-
-    # #NOT SURE IF WE SHOULD CHANGE IT'S LOCATION
-    # if best_model_state is not None: # Save the best model as a .pt file
-    #     if not os.path.exists(f"results/{project_name}"):
-    #         os.makedirs(f"results/{project_name}")
-    #     torch.save(best_model_state, f"results/{project_name}/best_model_trial_{trial.number}_fold_{fold}.pt")
 
     return best_val_F1_score
 
@@ -189,13 +190,13 @@ def objective(trial, tokenizer, model_name, model_class, base_attr, project_name
         class_weights = torch.tensor([ext_neg_weight, 1.0, 1.0, 1.0, ext_pos_weight], dtype=torch.float).to(device)
 
         # Define optimizer and loss function
-        criterion = nn.CrossEntropyLoss(weights=class_weights) #multiclass classification
+        criterion = nn.CrossEntropyLoss(weight=class_weights) #multiclass classification
         optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay) #maybe also try adamW
 
         # Initialize Weights & Biases - the values in the config are the properties of each trial.
 
         # Train the model and get the best F1 score:
-        best_fold_val_F1 = train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs=20, patience=patience, trial=trial,device=device,project_name=project_name, fold=fold)
+        best_fold_val_F1 = train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs=30, patience=patience, trial=trial,device=device,project_name=project_name, fold=fold)
         fold_val_F1_scores.append(best_fold_val_F1) #this is our most important metrix - the best validation across all folds
 
         # choose best model for saving best model across all folds:

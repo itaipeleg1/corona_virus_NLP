@@ -68,16 +68,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--study_name", type=str,  help="Name of the Optuna study / W&B project")
     parser.add_argument("--model_key", type=str, default="bertweet", choices=model_configs.keys(), help="Which model to use")
-    parser.add_argument("--training_type", type=str, default="pytorch", help="Training type tag (e.g. pytorch / HF)")
+    parser.add_argument("--training_type", type=str, default="pytorch", help="Training type tag (pytorch / HF)")
 
     args = parser.parse_args()
-    model_keys = ["bertweet"]
-    training_types = ["pytorch"]
+    model_keys = ["bertweet", "covidbert"]
+    training_types = ["pytorch", "HF"]
 
     for model_key in model_keys:
         for training_type in training_types:
             print(f"Running study for model: {model_key}, training type: {training_type}")
-            args.study_name = f"run_two_{model_key}_{training_type}"
+            args.study_name = f"run_2.1_{model_key}_{training_type}"
             args.model_key = model_key
             args.training_type = training_type
             # Call the main function with the current model key and training type
