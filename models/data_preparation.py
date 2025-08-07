@@ -49,4 +49,7 @@ def prepare_dataset(tokenizer,max_length):
     train_df, test_df = load_dataframes()
     train_ds = CovidTweetDataset(train_df, tokenizer, max_length)
     test_ds = CovidTweetDataset(test_df, tokenizer, max_length)
-    return train_ds, test_ds
+    labels = train_df['Sentiment'].tolist()
+    return train_ds, test_ds, labels
+
+

@@ -1,5 +1,6 @@
 *wandb/
 results/
+outputs/
 *.venv/
 .env
 *.env/
