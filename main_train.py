@@ -41,7 +41,7 @@ def main(study_name: str, model_key: str, training_type: str):
                 training_type=training_type,
                 max_length=config["max_length"]
             ),
-            n_trials=5
+            n_trials=3
         )
     elif training_type == "HF":
         study.optimize(
@@ -55,7 +55,7 @@ def main(study_name: str, model_key: str, training_type: str):
                 training_type=training_type,
                 max_length=config["max_length"]
             ),
-            n_trials=5
+            n_trials=3
         )
     else:
         raise ValueError(f"Unsupported training type: {training_type}")
@@ -71,13 +71,13 @@ if __name__ == "__main__":
     parser.add_argument("--training_type", type=str, default="pytorch", help="Training type tag (pytorch / HF)")
 
     args = parser.parse_args()
-    model_keys = ["bertweet", "covidbert"]
-    training_types = ["pytorch", "HF"]
+    model_keys = [ "covidbert", "bertweet"]
+    training_types = ["HF", "pytorch"]
 
     for model_key in model_keys:
         for training_type in training_types:
             print(f"Running study for model: {model_key}, training type: {training_type}")
-            args.study_name = f"run_2.2_{model_key}_{training_type}"
+            args.study_name = f"run_2.3_{model_key}_{training_type}"
             args.model_key = model_key
             args.training_type = training_type
             # Call the main function with the current model key and training type
