@@ -91,7 +91,7 @@ def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_n
             learning_rate=learning_rate,
             per_device_train_batch_size=batch_size,
             per_device_eval_batch_size=batch_size,
-            num_train_epochs=30,
+            num_train_epochs=25,
             weight_decay=weight_decay,
             load_best_model_at_end=True,
             metric_for_best_model="f1",
