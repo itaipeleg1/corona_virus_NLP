@@ -196,7 +196,7 @@ def objective(trial, tokenizer, model_name, model_class, base_attr, project_name
         # Initialize Weights & Biases - the values in the config are the properties of each trial.
 
         # Train the model and get the best F1 score:
-        best_fold_val_F1 = train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs=30, patience=patience, trial=trial,device=device,project_name=project_name, fold=fold)
+        best_fold_val_F1 = train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs=25, patience=patience, trial=trial,device=device,project_name=project_name, fold=fold)
         fold_val_F1_scores.append(best_fold_val_F1) #this is our most important metrix - the best validation across all folds
 
         # choose best model for saving best model across all folds:

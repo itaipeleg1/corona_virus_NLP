@@ -77,7 +77,7 @@ if __name__ == "__main__":
     for model_key in model_keys:
         for training_type in training_types:
             print(f"Running study for model: {model_key}, training type: {training_type}")
-            args.study_name = f"run_2.1_{model_key}_{training_type}"
+            args.study_name = f"run_2.2_{model_key}_{training_type}"
             args.model_key = model_key
             args.training_type = training_type
             # Call the main function with the current model key and training type
