@@ -107,7 +107,7 @@ def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_n
             # Hugging Face TrainingArguments
             training_args = TrainingArguments(
                 output_dir=f"./results/{project_name}_{training_type}_trial_{trial.number}",
-                evaluation_strategy="epoch",
+                eval_strategy="epoch",
                 save_strategy="epoch",
                 logging_strategy="epoch",
                 learning_rate=learning_rate,
