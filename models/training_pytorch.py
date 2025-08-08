@@ -12,6 +12,7 @@ import os
 from models import data_preparation
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 #as always, define early stopping
 def early_stop_check(patience, best_val_F1_score, best_val_F1_epoch, current_val_F1_score, current_val_F1_epoch):
@@ -160,7 +161,7 @@ def objective(trial, tokenizer, model_name, model_class, base_attr, project_name
     train_dataset, _, labels = data_preparation.prepare_dataset(tokenizer,max_length)
     
     #using stratified kfold for balanced splits:
-    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    kf = StratifiedKFold(n_splits=4, shuffle=True, random_state=42)
     fold_val_F1_scores = []
     best_model_across_folds = None # for saving the best model across all folds
     best_val_F1_across_folds = -1.0
@@ -196,7 +197,7 @@ def objective(trial, tokenizer, model_name, model_class, base_attr, project_name
         # Initialize Weights & Biases - the values in the config are the properties of each trial.
 
         # Train the model and get the best F1 score:
-        best_fold_val_F1 = train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs=25, patience=patience, trial=trial,device=device,project_name=project_name, fold=fold)
+        best_fold_val_F1 = train_model_with_hyperparams(model, train_loader, val_loader, optimizer, criterion, epochs=20, patience=patience, trial=trial,device=device,project_name=project_name, fold=fold)
         fold_val_F1_scores.append(best_fold_val_F1) #this is our most important metrix - the best validation across all folds
 
         # choose best model for saving best model across all folds:
