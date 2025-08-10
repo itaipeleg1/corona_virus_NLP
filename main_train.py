@@ -72,12 +72,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     model_keys = [ "covidbert", "bertweet"]
-    training_types = ["HF", "pytorch"]
+    training_types = ["HF"]
 
     for model_key in model_keys:
         for training_type in training_types:
             print(f"Running study for model: {model_key}, training type: {training_type}")
-            args.study_name = f"run_2.4_{model_key}_{training_type}"
+            args.study_name = f"run_itai2_{model_key}_{training_type}"
             args.model_key = model_key
             args.training_type = training_type
             # Call the main function with the current model key and training type
