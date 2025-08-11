@@ -40,9 +40,9 @@ def main(study_name: str, model_key: str, training_type: str):
                 base_attr=base_attr,
                 project_name=study_name,
                 training_type=training_type,
-                max_length=config["max_length"]
+               max_length=config["max_length"]
             ),
-            n_trials=5
+            n_trials=2
         )
         save_global_best_model(study, study_name)
     elif training_type == "HF":
@@ -57,7 +57,7 @@ def main(study_name: str, model_key: str, training_type: str):
                 training_type=training_type,
                 max_length=config["max_length"]
             ),
-            n_trials=5
+            n_trials=2
         )
         save_global_best_model(study, study_name)
     else:
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     parser.add_argument("--training_type", type=str, default="pytorch", help="Training type tag (e.g. pytorch / HF)")
 
     args = parser.parse_args()
-    model_keys = ["bertweet"]
+    model_keys = ["covidbert"]
     training_types = ["pytorch"]
 
     for model_key in model_keys:

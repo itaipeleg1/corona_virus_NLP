@@ -208,8 +208,9 @@ def objective(trial, tokenizer, model_name, model_class, base_attr, project_name
 
 def save_global_best_model(study, project_name):
     best = study.best_trial
-    src_dict = best.user_attrs.get("model_path_dict", None)
-    src_raw  = best.user_attrs.get("model_path_raw", None)
+    src_raw  = best.user_attrs.get("model_path")       # match objective
+    src_dict = best.user_attrs.get("model_dict_path")  # match objective
+
     if src_dict is None or src_raw is None:
         raise RuntimeError("Best trial is missing saved model paths.")
 
@@ -221,5 +222,7 @@ def save_global_best_model(study, project_name):
 
     print(
         f"Saved global best model from trial {best.number} "
-        f"(acc={best.user_attrs.get('best_acc'):.4f}, f1={best.user_attrs.get('best_f1'):.4f})"
+        f"(acc={best.user_attrs.get('best_val_accuracy'):.4f}, "
+        f"f1={best.user_attrs.get('best_val_f1'):.4f})"
     )
+
