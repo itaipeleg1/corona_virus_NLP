@@ -12,7 +12,7 @@ model_configs = {
         "max_length": 128  # critical for bertweet
     },
     "covidbert": {
-        "model_name": "digitalepidemiologylab/covid-twitter-bert",
+        "model_name": "digitalepidemiologylab/covid-twitter-bert-v2",
         "model_class": BertForSequenceClassification,
         "tokenizer_class": BertTokenizer,
         "base_attr": "bert",

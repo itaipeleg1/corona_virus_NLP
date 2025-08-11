@@ -1,6 +1,6 @@
 from transformers import RobertaForSequenceClassification, BertForSequenceClassification
 from transformers import RobertaTokenizer, BertTokenizer
-from models.training_pytorch import objective
+from models.training_pytorch import objective, save_global_best_model
 from models.training_HF import objective_HF
 from models.model_config import model_configs
 import optuna
@@ -23,7 +23,7 @@ def main(study_name: str, model_key: str, training_type: str):
 
     # Initialize model and tokenizer
     tokenizer = tokenizer_class.from_pretrained(model_name)
-    model = model_class.from_pretrained(model_name, num_labels=5)
+    
 
     
     # Create Optuna study
@@ -36,7 +36,7 @@ def main(study_name: str, model_key: str, training_type: str):
                 trial=trial,
                 tokenizer=tokenizer,
                 model_name=model_name,
-                model=model,
+                model_class=model_class,
                 base_attr=base_attr,
                 project_name=study_name,
                 training_type=training_type,
@@ -44,13 +44,14 @@ def main(study_name: str, model_key: str, training_type: str):
             ),
             n_trials=5
         )
+        save_global_best_model(study, study_name)
     elif training_type == "HF":
         study.optimize(
             lambda trial: objective_HF(
                 trial=trial,
                 tokenizer=tokenizer,
                 model_name=model_name,
-                model=model,
+                model_class=model_class,
                 base_attr=base_attr,
                 project_name=study_name,
                 training_type=training_type,
@@ -58,6 +59,7 @@ def main(study_name: str, model_key: str, training_type: str):
             ),
             n_trials=5
         )
+        save_global_best_model(study, study_name)
     else:
         raise ValueError(f"Unsupported training type: {training_type}")
     
@@ -73,12 +75,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     model_keys = ["bertweet"]
-    training_types = ["pytorch", "HF"]
+    training_types = ["pytorch"]
 
     for model_key in model_keys:
         for training_type in training_types:
             print(f"Running study for model: {model_key}, training type: {training_type}")
-            args.study_name = f"test_no_atts_emojis"
+            args.study_name = f"{model_key}_{training_type}_study_augmented"
             args.model_key = model_key
             args.training_type = training_type
             # Call the main function with the current model key and training type

@@ -2,6 +2,7 @@ from transformers import Trainer, TrainingArguments, EarlyStoppingCallback
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 import torch
 import wandb
+from collections import Counter
 import os
 from models import data_preparation
 
@@ -15,15 +16,33 @@ def compute_metrics(pred):
         'f1': f1,
         'precision': precision,
     }
+class WeightedLossTrainer(Trainer):
+    def __init__(self, *args, class_weights=None, label_smoothing=0.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.class_weights = class_weights
+        self.label_smoothing = label_smoothing
 
-def objective_HF(trial, tokenizer, model_name, model, base_attr, project_name, training_type, max_length):
+    def compute_loss(self, model, inputs, return_outputs=False):
+        labels = inputs.pop("labels")
+        outputs = model(**inputs)
+        logits = outputs.get("logits")
+        loss = torch.nn.CrossEntropyLoss(
+            weight=(self.class_weights.to(logits.device) if self.class_weights is not None else None),
+            label_smoothing=self.label_smoothing
+        )
+        loss = loss(logits, labels)
+        return (loss, outputs) if return_outputs else loss
+
+def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_name, training_type, max_length):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model_class.from_pretrained(model_name, num_labels=5).to(device)
     # Hyperparameter suggestions - WE SHOULD ADD MORE HYPERPARAMETERS HERE
     learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-3)
-    weight_decay = trial.suggest_loguniform("weight_decay", 1e-6, 1e-4)
+    weight_decay = trial.suggest_loguniform("weight_decay", 1e-5, 1e-3)
     patience = trial.suggest_int("patience", 7, 10)
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
-    num_layers = trial.suggest_int("num_layers", 1, 3, step=1)
+    num_layers = trial.suggest_int("num_layers", 1, 2, step=1)
+    label_smooth = 0.1  # label smoothing factor
 
     # Freeze layers if base_attr is valid
     base_model = getattr(model, base_attr, None)
@@ -34,6 +53,14 @@ def objective_HF(trial, tokenizer, model_name, model, base_attr, project_name, t
 
     # Prepare datasets
     train_dataset, eval_dataset, _ = data_preparation.prepare_dataset(tokenizer, max_length)
+
+    y_train = data_preparation.extract_labels(train_dataset)  # ints 0..K-1
+    counts  = Counter(y_train)
+    classes = sorted(counts.keys())
+    N, K    = sum(counts.values()), len(classes)
+    class_weights = torch.tensor([N/(K*counts[c]) for c in classes], dtype=torch.float)
+    
+
 
     # Configure W&B
     wandb.init(project=project_name,
@@ -49,33 +76,67 @@ def objective_HF(trial, tokenizer, model_name, model, base_attr, project_name, t
         name=f"{project_name}_{training_type}_trial_{trial.number}") # The name that will be saved in the W&B platform
 
     # Hugging Face TrainingArguments
-    training_args = TrainingArguments(
-        output_dir=f"./results/{project_name}_{training_type}_trial_{trial.number}",
-        eval_strategy="epoch",
+    # ---- training args (mirror PyTorch choices) ----
+    out_dir = f"./results/{project_name}_{training_type}_trial_{trial.number}"
+    args = TrainingArguments(
+        output_dir=out_dir,
+        evaluation_strategy="epoch",
         save_strategy="epoch",
+        save_total_limit=1,                  # keep only best
+        load_best_model_at_end=True,
+        metric_for_best_model="accuracy",  
+        greater_is_better=True,
         learning_rate=learning_rate,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         num_train_epochs=20,
         weight_decay=weight_decay,
-        load_best_model_at_end=True,
-        metric_for_best_model="accuracy",
-        report_to=["wandb"],
+        warmup_ratio=0.1,
         logging_steps=10,
-        save_total_limit=1
+        report_to=["wandb"],
+        max_grad_norm=1.0,              
+        label_smoothing_factor=0.0           # we apply smoothing in custom loss instead
     )
 
-    trainer = Trainer(
+    # ---- trainer: weighted loss + label smoothing (no sampler; just shuffle internally) ----
+    trainer = WeightedLossTrainer(
         model=model,
-        args=training_args,
+        args=args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=patience)]
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=patience)],
+        class_weights=class_weights,
+        label_smoothing=label_smooth
     )
 
     trainer.train()
     metrics = trainer.evaluate()
     wandb.finish()
+    trials_dir = f"./results/{project_name}/trials"
+    os.makedirs(trials_dir, exist_ok=True)
 
-    return metrics["eval_accuracy"]
+    hf_dir = os.path.join(trials_dir, f"model_trial_{trial.number}_hf")
+    trainer.save_model(hf_dir)  # config + model weights in HF format
+
+    pt_path = os.path.join(trials_dir, f"model_trial_{trial.number}.pt")
+    torch.save(trainer.model.state_dict(), pt_path)  # plain PyTorch weights
+
+    pt_path_dict = os.path.join(trials_dir, f"model_trial_{trial.number}_dict.pt")
+    model_dict = {
+        "state_dict": trainer.model.state_dict(),
+        "lr_rate": float(learning_rate),
+        "best_acc": float(metrics.get("eval_accuracy", 0.0)),
+        "best_f1":  float(metrics.get("eval_f1", 0.0)),
+    }
+    torch.save(model_dict, pt_path_dict)
+
+    # record for Optuna's global-best picker
+    trial.set_user_attr("model_path_raw",  pt_path)
+    trial.set_user_attr("model_path_dict", pt_path_dict)
+    trial.set_user_attr("best_acc", float(metrics.get("eval_accuracy", 0.0)))
+    trial.set_user_attr("best_f1",  float(metrics.get("eval_f1", 0.0)))
+    trial.set_user_attr("learning_rate", float(learning_rate))
+
+    # return the optimization objective (accuracy to match metric_for_best_model)
+    return float(metrics.get("eval_accuracy", 0.0))
