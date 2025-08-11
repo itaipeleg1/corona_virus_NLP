@@ -1,35 +1,44 @@
 from torch.nn.utils import prune
 
-def global_pruning_linears(model, amount=0.2, make_permanent=True):
+def global_pruning_linears(model, amount: float, make_permanent=True):
     """
     Globally prune a fraction `amount` of weights across ALL nn.Linear layers.
-    Returns (model, {"sparsity_linear": ..., "total_linear_params": ...})
+    
     """
-    # pick Linear weights
-    to_prune = [(m, "weight") for m in model.modules() if isinstance(m, nn.Linear)]
-    if not to_prune:
-        print("No nn.Linear layers found. Nothing to prune.")
+    linear_layers = []
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Linear) and "classifier" not in name: # not pruning classififer because of accuracy drop
+            linear_layers.append((module, "weight"))
+
+    if not linear_layers:
+        print("No eligible Linear layers found for pruning.")
         return model, {"sparsity_linear": 0.0, "total_linear_params": 0}
 
-    # apply global unstructured pruning
     prune.global_unstructured(
-        to_prune,
+        linear_layers,
         pruning_method=prune.L1Unstructured,
         amount=amount,
     )
 
-    # optionally bake masks into real zeros
     if make_permanent:
-        for m, _ in to_prune:
-            prune.remove(m, "weight")
+        for layer, _ in linear_layers:
+            prune.remove(layer, "weight")
 
-    # report sparsity over Linear weights only
-    zeros = sum((m.weight == 0).sum().item() for m, _ in to_prune)
-    total = sum(m.weight.numel() for m, _ in to_prune)
-    print(f"Sparsity in Linear weights: {zeros/total:.2%}  ({zeros}/{total} zeros)")
+    total_params = sum(layer.weight.numel() for layer, _ in linear_layers)
+    zero_params = sum((layer.weight == 0).sum().item() for layer, _ in linear_layers)
+    sparsity = zero_params / total_params
 
-    return model, {"sparsity_linear": zeros / total, "total_linear_params": total}
+    print(f"Pruned model sparsity: {sparsity:.2%}")
+    return model, {"sparsity_linear": sparsity, "total_linear_params": total_params}
 
+
+    # #saving pruned_model  - for later:
+    # os.makedirs(output_dir, exist_ok=True)
+    # save_path = os.path.join(output_dir, filename)
+    # torch.save(model.state_dict(), save_path)
+    # print(f"✅ Pruned model saved to: {save_path}")
+
+   
 # def global_pruning_linears(model, amount=0.2):
 #     print("Original model size:", sum(p.numel() for p in model.parameters()))
 #     p_model = model

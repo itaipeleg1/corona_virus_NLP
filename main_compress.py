@@ -4,17 +4,57 @@ import copy
 from compression.model_loading import load_pt_model
 from compression.quantization import quantize_model
 from compression.pruning import global_pruning_linears
+#from compression.compression_config import best_covidbert_dict_path, best_bertweet_dict_path 
+from models.model_config import model_configs
 
-model_path = "/mnt/hdd/anatkorol/corona_virus_NLP/results/run_2.5_bertweet_pytorch/best_model_trial_1.pt"
-model_key = "bertweet"
+#these wil be replaced by values from compression_config.py
+#placeholder
+model_dict_path = "/mnt/hdd/anatkorol/corona_virus_NLP/results/run_2.5_bertweet_pytorch/best_model_trial_1.pt"
+model_key = "bertweet" # "covidbert"
 
-model, tokenizer = load_pt_model(model_path, model_key)
-model = copy.deepcopy(model)
 
-q_model = quantize_model(model, dtype=torch.qint8)
+def main(model_dict_path, model_key):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(device)
+    
+    config = model_configs[model_key]
+    model_class = config["model_class"]
+    tokenizer_class = config["tokenizer_class"]
+    model_name = config["model_name"]
+    max_length = config["max_length"]
 
-#pruned model
-p_model, info = global_pruning_linears(model, amount=0.2, make_permanent=True)
+    #maybe make it modular in case there isn't a dict
+    checkpoint = torch.load(model_dict_path, map_location=device)
+    #if checkpoint is a dictionary, extract all:
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        state_dict = checkpoint["state_dict"]
+        lr_rate = checkpoint["lr_rate"]
+        best_acc = checkpoint["best_acc"]
+    else:
+        state_dict = checkpoint  # assume it's already a state_dict
+
+    # Load original model and relevant hyperparameters
+    original_model, tokenizer = load_pt_model(model_key=model_key, model_name=model_name, model_class=model_class, tokenizer_class=tokenizer_class, state_dict=state_dict, num_labels=5, device=device)
+
+    #now perform compressions:
+    q_model = quantize_model(original_model, dtype=torch.qint8)
+
+    #pruned model
+    p_model, info = global_pruning_linears(original_model, amount=amount, make_permanent=True)
+
+    #adding training to pruned model
+    #MISSING!!!
+
+    #knowledge distillation
+
+    #comparison metrics - export to csv
+
+
+
+if __name__ == "__main__":
+    model_keys = ["bertweet", "covidbert"]
+    amount = 0.2 #how much pruning - can be modular
+    main(model_dict_path=model_dict_path, model_key=model_key)
 
 #save 3 types of compressions
 

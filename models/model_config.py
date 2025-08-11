@@ -25,4 +25,12 @@ model_configs = {
         "base_attr": "roberta",
         "max_length": 512 # critical for roberta
     },
+    
+    "student_bert": {
+
+    },
+    "student_roberta": {
+
+    }
 }
+

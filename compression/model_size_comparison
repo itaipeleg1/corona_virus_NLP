@@ -1,3 +1,5 @@
+# comparisons: model_size, inference_time, memory usage and accuracy
+
 def compare_model_sizes (model1, model2):
     # returning the size difference between the two models
     size1 = sum(p.numel() for p in model1.parameters())
