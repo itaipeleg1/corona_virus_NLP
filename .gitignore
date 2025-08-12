@@ -5,5 +5,4 @@ results/
 *.env/
 **/.env
 *__pycache__/
-
 compression/saved_compressed/
