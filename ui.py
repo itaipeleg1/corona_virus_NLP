@@ -1,8 +1,10 @@
 import streamlit as st
 import torch
 import time
+from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
 import numpy as np
+from config import PROJECT_ROOT
 
 # Set page config
 st.set_page_config(
@@ -88,25 +90,25 @@ def main():
     
     model_configs = {
         "Bertweet": {
-            "path": "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt",
+            "path": PROJECT_ROOT / "results/bertweet_HF_study_augmented/best/best_model_state_dict.pt",
             "model_name": "vinai/bertweet-base",
             "is_state_dict": True,
             "description": "Full fine-tuned BERTweet model"
         },
         "Compressed BertWeet": {
-            "path": "/mnt/hdd/itai/corona_virus_NLP/compression/saved_compressed/bertweet/bertweet_knowledge_distillation_model.pt", 
+            "path": PROJECT_ROOT / "compression/saved_compressed/bertweet/bertweet_knowledge_distillation_model.pt",
             "model_name": "distilroberta-base",
             "is_state_dict": True,
             "description": "Knowledge distilled BERTweet model"
         },
         "CovidBert": {
-            "path": "/mnt/hdd/itai/corona_virus_NLP/results/covidbert_HF_study_augmented/best/best_model_state_dict.pt",
+            "path": PROJECT_ROOT / "results/bertweet_HF_study_augmented/best/best_model_state_dict.pt",
             "model_name": "digitalepidemiologylab/covid-twitter-bert",
             "is_state_dict": True,
             "description": "Full fine-tuned CovidBERT model"
         },
         "Compressed CovidBert": {
-            "path": "/mnt/hdd/itai/corona_virus_NLP/compression/saved_compressed/covidbert/covidbert_knowledge_distillation_model.pt",
+            "path": PROJECT_ROOT / "results/bertweet_HF_study_augmented/best/best_model_state_dict.pt",
             "model_name": "distilbert-base-uncased",
             "is_state_dict": True,
             "description": "Knowledge distilled CovidBERT model"
@@ -116,7 +118,7 @@ def main():
 
     st.title("📱 Tweet Sentiment Analysis")
     st.markdown("### Analyze the sentiment of tweets using fine-tuned BERT models")
-    
+
         # Pre-load all models at startup
     if 'loaded_models' not in st.session_state:
         st.markdown("## 🚀 Loading Models...")
