@@ -160,12 +160,12 @@ if __name__ == "__main__":
     compression_types = ['quantization', 'pruning', 'knowledge_distillation']
     
     # Current model to process (change this to switch between models)
-    current_model_key = "bertweet" 
+    current_model_key = "bertweet"
     
     # Model paths - UPDATE THESE WITH YOUR ACTUAL PATHS
     model_paths = {
         "bertweet": "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt",
-        #"covidbert": "/path/to/your/covidbert/model.pt"  # Update this path
+        #"covidbert": "/mnt/hdd/itai/corona_virus_NLP/results/covidbert_HF_study_augmented/best/best_model_state_dict.pt"
     }
     
     # Training parameters

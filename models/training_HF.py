@@ -111,6 +111,7 @@ def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_n
         eval_dataset=eval_dataset,
         compute_metrics=compute_metrics,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=patience)],
+
     )
 
     trainer.train()
