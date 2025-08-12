@@ -5,6 +5,11 @@ import wandb
 from collections import Counter
 import os
 from models import data_preparation
+from transformers import TrainingArguments
+import transformers
+
+from transformers import TrainingArguments
+import inspect
 
 def compute_metrics(pred):
     labels = pred.label_ids
@@ -37,9 +42,9 @@ def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_n
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model_class.from_pretrained(model_name, num_labels=5).to(device)
     # Hyperparameter suggestions - WE SHOULD ADD MORE HYPERPARAMETERS HERE
-    learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-3)
-    weight_decay = trial.suggest_loguniform("weight_decay", 1e-5, 1e-3)
-    patience = trial.suggest_int("patience", 7, 10)
+    learning_rate = trial.suggest_float("learning_rate", 5e-6, 5e-4, log=True)
+    weight_decay = trial.suggest_loguniform("weight_decay", 1e-4, 3e-2)
+    patience = trial.suggest_int("patience", 5,7)
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
     num_layers = trial.suggest_int("num_layers", 1, 2, step=1)
     label_smooth = 0.1  # label smoothing factor
@@ -80,7 +85,7 @@ def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_n
     out_dir = f"./results/{project_name}_{training_type}_trial_{trial.number}"
     args = TrainingArguments(
         output_dir=out_dir,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         save_total_limit=1,                  # keep only best
         load_best_model_at_end=True,
@@ -99,15 +104,13 @@ def objective_HF(trial, tokenizer, model_name, model_class, base_attr, project_n
     )
 
     # ---- trainer: weighted loss + label smoothing (no sampler; just shuffle internally) ----
-    trainer = WeightedLossTrainer(
+    trainer = Trainer(
         model=model,
         args=args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         compute_metrics=compute_metrics,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=patience)],
-        class_weights=class_weights,
-        label_smoothing=label_smooth
     )
 
     trainer.train()

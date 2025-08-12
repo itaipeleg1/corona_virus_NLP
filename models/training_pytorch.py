@@ -126,10 +126,10 @@ def train_model_with_hyperparams(model, train_loader, val_loader, optimizer, cri
 def objective(trial, tokenizer, model_name, model_class, base_attr, project_name, training_type,max_length):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model_class.from_pretrained(model_name, num_labels=5).to(device)
-    # Hyperparameter suggestions - WE SHOULD ADD MORE HYPERPARAMETERS HERE
-    learning_rate = trial.suggest_loguniform("learning_rate", 1e-5, 1e-3)
-    weight_decay = trial.suggest_loguniform("weight_decay", 1e-5, 1e-3)
-    patience = trial.suggest_int("patience", 7, 10)
+   
+    learning_rate = trial.suggest_float("learning_rate", 5e-6, 5e-4, log=True)
+    weight_decay = trial.suggest_loguniform("weight_decay", 1e-4, 3e-2)
+    patience = trial.suggest_int("patience", 5,7)
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128])
     num_layers = trial.suggest_int("num_layers", 1, 2, step=1)
     
@@ -158,7 +158,7 @@ def objective(trial, tokenizer, model_name, model_class, base_attr, project_name
         param.requires_grad = True
 
     # Define optimizer and loss function
-    criterion = nn.CrossEntropyLoss(weight=class_weights, label_smoothing=0.1)
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay) #maybe also try adamW
 
     # Initialize Weights & Biases - the values in the config are the properties of each trial.

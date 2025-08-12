@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModelForMaskedLM, AutoModel, AutoModelForSequenceClassification, AutoConfig, RobertaForSequenceClassification, BertForSequenceClassification, RobertaTokenizer, BertTokenizer
+from transformers import AutoTokenizer, AutoModelForMaskedLM, AutoModel, AutoModelForSequenceClassification, AutoConfig, RobertaForSequenceClassification, BertForSequenceClassification, RobertaTokenizer, BertTokenizer, DistilBertForSequenceClassification, DistilBertTokenizer
 from transformers.models.bertweet import BertweetTokenizer
 
 
@@ -12,7 +12,7 @@ model_configs = {
         "max_length": 128  # critical for bertweet
     },
     "covidbert": {
-        "model_name": "digitalepidemiologylab/covid-twitter-bert-v2",
+        "model_name": "digitalepidemiologylab/covid-twitter-bert",
         "model_class": BertForSequenceClassification,
         "tokenizer_class": BertTokenizer,
         "base_attr": "bert",
@@ -25,4 +25,20 @@ model_configs = {
         "base_attr": "roberta",
         "max_length": 512 # critical for roberta
     },
+    
+    "student_bertweet_roberta": {
+        "model_name": "distilroberta-base",
+        "model_class": RobertaForSequenceClassification,
+        "tokenizer_class": RobertaTokenizer,
+        "base_attr": "roberta",
+        "max_length": 128
+    },
+
+    "student_covidbert_bert": {
+        "model_name": "distilbert-base-uncased",
+        "model_class": DistilBertForSequenceClassification,
+        "tokenizer_class": DistilBertTokenizer,
+        "base_attr": "bert",
+        "max_length": 128
+    }
 }

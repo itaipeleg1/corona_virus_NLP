@@ -11,6 +11,7 @@ import os
 
 def main(study_name: str, model_key: str, training_type: str):
     # Load config
+
     config = model_configs[model_key]
     model_name = config["model_name"]
     model_class = config["model_class"]
@@ -42,7 +43,7 @@ def main(study_name: str, model_key: str, training_type: str):
                 training_type=training_type,
                max_length=config["max_length"]
             ),
-            n_trials=2
+            n_trials=5
         )
         save_global_best_model(study, study_name)
     elif training_type == "HF":
@@ -57,9 +58,8 @@ def main(study_name: str, model_key: str, training_type: str):
                 training_type=training_type,
                 max_length=config["max_length"]
             ),
-            n_trials=2
+            n_trials=5
         )
-        save_global_best_model(study, study_name)
     else:
         raise ValueError(f"Unsupported training type: {training_type}")
     
@@ -74,8 +74,8 @@ if __name__ == "__main__":
     parser.add_argument("--training_type", type=str, default="pytorch", help="Training type tag (e.g. pytorch / HF)")
 
     args = parser.parse_args()
-    model_keys = ["covidbert"]
-    training_types = ["pytorch"]
+    model_keys = ["bertweet"]
+    training_types = ["HF", "pytorch"]
 
     for model_key in model_keys:
         for training_type in training_types:

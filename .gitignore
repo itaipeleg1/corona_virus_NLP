@@ -6,3 +6,4 @@ results/
 **/.env
 *__pycache__/
 
+compression/saved_compressed/
