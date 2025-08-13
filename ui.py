@@ -5,6 +5,7 @@ from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoConfig
 import numpy as np
 from config import PROJECT_ROOT
+from models.model_config import model_configs
 
 # Set page config
 st.set_page_config(
@@ -18,17 +19,17 @@ st.set_page_config(
 def load_model(model_config):
     """Load tokenizer and model from the given config"""
     try:
-        model_path = model_config["path"]
+        model_path = model_config["best_path"]
         base_model = model_config["model_name"]
         is_state_dict = model_config.get("is_state_dict", False)
         
         # Load tokenizer from base model
-        tokenizer = AutoTokenizer.from_pretrained(base_model)
-        
+        tokenizer = model_config["tokenizer_class"].from_pretrained(base_model)
+
         if is_state_dict:
             # Load model architecture from base model, then load state dict
             # Use ignore_mismatched_sizes=True to handle size mismatches
-            model = AutoModelForSequenceClassification.from_pretrained(
+            model = model_config["model_class"].from_pretrained(
                 base_model, 
                 num_labels=5,  # Set to 5 labels based on your error message
                 ignore_mismatched_sizes=True
@@ -38,7 +39,7 @@ def load_model(model_config):
             model.load_state_dict(state_dict, strict=False)
         else:
             # Load model directly from path
-            model = AutoModelForSequenceClassification.from_pretrained(model_path)
+            model = model_config["model_class"].from_pretrained(model_path)
         
         model.eval()  # Set to evaluation mode
         return tokenizer, model
@@ -88,33 +89,32 @@ def predict_sentiment(text, tokenizer, model):
 # Main app
 def main():
     
-    model_configs = {
-        "Bertweet": {
-            "path": PROJECT_ROOT / "results/bertweet_HF_study_augmented/best/best_model_state_dict.pt",
-            "model_name": "vinai/bertweet-base",
-            "is_state_dict": True,
-            "description": "Full fine-tuned BERTweet model"
-        },
-        "Compressed BertWeet": {
-            "path": PROJECT_ROOT / "compression/saved_compressed/bertweet/bertweet_knowledge_distillation_model.pt",
-            "model_name": "distilroberta-base",
-            "is_state_dict": True,
-            "description": "Knowledge distilled BERTweet model"
-        },
-        "CovidBert": {
-            "path": PROJECT_ROOT / "results/bertweet_HF_study_augmented/best/best_model_state_dict.pt",
-            "model_name": "digitalepidemiologylab/covid-twitter-bert",
-            "is_state_dict": True,
-            "description": "Full fine-tuned CovidBERT model"
-        },
-        "Compressed CovidBert": {
-            "path": PROJECT_ROOT / "results/bertweet_HF_study_augmented/best/best_model_state_dict.pt",
-            "model_name": "distilbert-base-uncased",
-            "is_state_dict": True,
-            "description": "Knowledge distilled CovidBERT model"
-        }
-    }
-
+    # model_configs = {
+    #     "Bertweet": {
+    #         "path": PROJECT_ROOT / "results/bertweet_HF_study_augmented/best/best_model_state_dict.pt",
+    #         "model_name": "vinai/bertweet-base",
+    #         "is_state_dict": True,
+    #         "description": "Full fine-tuned BERTweet model"
+    #     },
+    #     "Compressed BertWeet": {
+    #         "path": PROJECT_ROOT / "compression/saved_compressed/bertweet/bertweet_knowledge_distillation_model.pt",
+    #         "model_name": "distilroberta-base",
+    #         "is_state_dict": True,
+    #         "description": "Knowledge distilled BERTweet model"
+    #     },
+    #     "CovidBert": {
+    #         "path": PROJECT_ROOT / "results/covidbert_pytorch_study_augmented/best/best_model_state_dict.pt",
+    #         "model_name": "digitalepidemiologylab/covid-twitter-bert",
+    #         "is_state_dict": True,
+    #         "description": "Full fine-tuned CovidBERT model"
+    #     },
+    #     "Compressed CovidBert": {
+    #         "path": PROJECT_ROOT / "compression/saved_compressed/covidbert/knowledge_distillation_model.pt",
+    #         "model_name": "distilbert-base-uncased",
+    #         "is_state_dict": True,
+    #         "description": "Knowledge distilled CovidBERT model"
+    #     }
+    # }
 
     st.title("📱 Tweet Sentiment Analysis")
     st.markdown("### Analyze the sentiment of tweets using fine-tuned BERT models")

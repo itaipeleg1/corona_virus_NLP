@@ -160,7 +160,7 @@ if __name__ == "__main__":
     compression_types = ['quantization', 'pruning', 'knowledge_distillation']
     
     # Current model to process (change this to switch between models)
-    current_model_key = "bertweet"
+    current_model_key = "covidbert"
     
     # Model paths - UPDATE THESE WITH YOUR ACTUAL PATHS
     model_paths = {
