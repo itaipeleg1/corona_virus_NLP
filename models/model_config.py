@@ -31,11 +31,11 @@ model_configs = {
         "base_attr": "roberta",
         "max_length": 128,
         "is_state_dict": True,
-        "best_path": PROJECT_ROOT / "results/best_compressed/distilled_bertweet.pt",
+        "best_path": PROJECT_ROOT / "results/best_compressed/bertweet_knowledge_distillation_model.pt",
         "description": "Distilled BERTweet model"
     },
 
-    "student_covidbert_bert": {
+    "Distilled CovidBert": {
         "model_name": "distilbert-base-uncased",
         "model_class": DistilBertForSequenceClassification,
         "tokenizer_class": DistilBertTokenizer,
@@ -43,7 +43,7 @@ model_configs = {
         "max_length": 128,
         "model_name": "distilbert-base-uncased",
         "is_state_dict": True,
-        "best_path": PROJECT_ROOT / "results/best_compressed/distilled_covidbert.pt",
+        "best_path": PROJECT_ROOT / "results/best_compressed/covidbert_knowledge_distillation_model.pt",
         "description": "Distilled CovidBERT model"
     }
 }

@@ -7,6 +7,8 @@ import numpy as np
 from config import PROJECT_ROOT
 from models.model_config import model_configs
 
+# run using streamlit run ui.py
+
 # Set page config
 st.set_page_config(
     page_title="Tweet Sentiment Analysis",
@@ -19,7 +21,7 @@ st.set_page_config(
 def load_model(model_config):
     """Load tokenizer and model from the given config"""
     try:
-        model_path = model_config["best_path"]
+        model_path = model_config.get("best_path")
         base_model = model_config["model_name"]
         is_state_dict = model_config.get("is_state_dict", False)
         
@@ -39,7 +41,7 @@ def load_model(model_config):
             model.load_state_dict(state_dict, strict=False)
         else:
             # Load model directly from path
-            model = model_config["model_class"].from_pretrained(model_path)
+            model = model_config["model_class"].from_pretrained(base_model, num_labels=5)
         
         model.eval()  # Set to evaluation mode
         return tokenizer, model
