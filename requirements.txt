@@ -14,3 +14,8 @@ tqdm
 streamlit
 evaluate
 accelerate>=0.26.0
+jupyter 
+jupyterlab 
+notebook 
+ipykernel
+ipywidgets
