@@ -12,11 +12,11 @@ from config import DATA_DIR
 from models.model_config import model_configs
 from models.data_preparation import prepare_dataset
 
-# Configuration variables
-model_dict_path = "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt"
-model_key = "bertweet"  # or "covidbert"
+# # Configuration variables
+# model_dict_path = "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt"
+# model_key = "bertweet"  # or "covidbert"
 
-def main(model_dict_path, model_key, distill_epochs: int, do_save_models: bool, do_save_reports: bool):
+def main(model_key, distill_epochs: int, do_save_models: bool, do_save_reports: bool):
     # Set global parameters based on model_key
     if model_key == 'bertweet':
         student_key = 'student_bertweet_roberta'
@@ -37,7 +37,8 @@ def main(model_dict_path, model_key, distill_epochs: int, do_save_models: bool, 
     tokenizer_class = config["tokenizer_class"]
     model_name = config["model_name"]
     max_length = config["max_length"]
-    
+    model_dict_path = config["best_path"]
+
     # Load checkpoint and extract state_dict
     print("Loading checkpoint...")
     checkpoint = torch.load(model_dict_path, map_location=device)
@@ -160,13 +161,7 @@ if __name__ == "__main__":
     compression_types = ['quantization', 'pruning', 'knowledge_distillation']
     
     # Current model to process (change this to switch between models)
-    current_model_key = "bertweet"
-    
-    # Model paths - UPDATE THESE WITH YOUR ACTUAL PATHS
-    model_paths = {
-        "bertweet": "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt",
-        #"covidbert": "/mnt/hdd/itai/corona_virus_NLP/results/covidbert_HF_study_augmented/best/best_model_state_dict.pt"
-    }
+    current_model_key = "covidbert"
     
     # Training parameters
     distill_epochs = 5
@@ -177,7 +172,6 @@ if __name__ == "__main__":
     
     try:
         results = main(
-            model_dict_path=model_paths[current_model_key], 
             model_key=current_model_key, 
             distill_epochs=distill_epochs, 
             do_save_models=True, 

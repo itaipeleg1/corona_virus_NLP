@@ -15,6 +15,7 @@ from models.model_config import model_configs
 def load_pt_model(model_key: str, model_name: str, model_class: type, tokenizer_class: type, state_dict: dict, num_labels: int = 5, device: str | None = None):
     #getting (model_dict_path: dict, model_key: str, num_labels: int = 5, device: str | None = None):
     #build model based on config
+    
     tokenizer = tokenizer_class.from_pretrained(model_name)
     model = model_class.from_pretrained(model_name, num_labels=num_labels)
 
