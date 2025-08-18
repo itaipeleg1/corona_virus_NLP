@@ -1,7 +1,7 @@
 import torch
 import copy
 import pandas as pd
-from compression.model_loading import load_pt_model, load_student_model
+from compression.model_loading import load_pt_model, load_student_model, load_compressed_models
 from compression.quantization import quantize_model
 from compression.pruning import global_pruning_linears
 from compression.distillation_HF import knowledge_distillation
@@ -16,7 +16,7 @@ from compression.compression_configs import compression_configs
 # model_dict_path = "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt"
 # model_key = "bertweet"  # or "covidbert"
 
-def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool, amount=amount, temperature=temperature, alpha=alpha):
+def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool, amount: float, temperature: float, alpha: float):
     print(f"Starting compression pipeline for {model_key}")
     print("="*60)
     
@@ -30,75 +30,65 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
     print(f"Base model name: {base_model_name}")
 
     config = model_configs[base_model_name]
-    model_class = config["model_class"]
-    tokenizer_class = config["tokenizer_class"]
-    model_name = config["model_name"]
     max_length = config["max_length"]
     student_key = config["student_key"]
 
-    #  # Set the chosen student based on base_model_name
-    # if base_model_name == 'bertweet':
-    #     student_key = 'distilroberta' #this will later be accessed to use the architecture (pretrained model and tokenizer) for student distillation
-    # else:
-    #     student_key = 'distilbert'
-    
-    # Load checkpoint and extract state_dict
-    print("Loading checkpoint...")
-    checkpoint = torch.load(model_dict_path, map_location=device)
-    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
-        state_dict = checkpoint["state_dict"]
-        best_acc = checkpoint.get("best_acc", None)
-        print(f"Loaded checkpoint with best accuracy: {best_acc}")
-    else:
-        state_dict = checkpoint  # assume it's already a state_dict
-        print("Loaded state_dict directly")
-    
+    checkpoint = torch.load(model_dict_path, map_location='cpu')
+    print(f'checkpoint keys: {checkpoint.keys()}')
+
     # Load original model
     print("\n=== LOADING ORIGINAL MODEL ===")
     original_model, original_tokenizer = load_pt_model(
         model_key=model_key, 
-        model_name=model_name, 
-        model_class=model_class, 
-        tokenizer_class=tokenizer_class, 
-        state_dict=state_dict, 
+        state_dict=torch.load(model_dict_path, map_location=device), 
         num_labels=5, 
         device=device
     )
     
-    # Load student model (BEFORE doing compressions)
-    print("\n=== LOADING STUDENT MODEL ===")
-    
-    student_model, student_tokenizer, student_model_name, student_model_class, student_tokenizer_class = load_student_model(student_key=student_key, num_labels=5, device=device)
-    
-    # Prepare datasets for evaluation (NOW we have both tokenizers)
-    print("\n=== PREPARING DATASETS ===")
-    _, _, test_dataset = prepare_dataset(original_tokenizer, max_length=max_length)
-    _, _, student_test_dataset = prepare_dataset(student_tokenizer, max_length=max_length)
+        #load pretrained models using state dict paths
+    if not do_train:
+        print("\n=== LOADING COMPRESSED MODELS ===")
+        compressed_dict = load_compressed_models(model_key=model_key, student_key=student_key, num_labels=5, device=device)
 
-    
-    # Apply compressions (NOW we have everything loaded)
-    print("\n=== APPLYING COMPRESSIONS ===")
-    
-    # QUANTIZATION
-    print("\n--- Quantization ---")
-    q_model = quantize_model(copy.deepcopy(original_model), model_key,  dtype=torch.qint8)
-    if do_save_models:
-        save_model_state(q_model, model_key, compression_type="quantization", output_dir=COMPRESSION_OUTPUT_DIR)
+        # Unpack models and tokenizers
+        q_model, _ = compressed_dict["quantized"]
+        p_model, _ = compressed_dict["pruned"]
+        distilled_model, student_tokenizer = compressed_dict["distilled"]
+        
 
-    # PRUNING
-    print("\n--- Pruning ---")
-    p_model = global_pruning_linears(copy.deepcopy(original_model), amount=amount, make_permanent=True)
-    if do_save_models:
-        save_model_state(p_model, model_key, compression_type="pruning", output_dir=COMPRESSION_OUTPUT_DIR)
-    
-    # KNOWLEDGE DISTILLATION
-    print("\n--- Knowledge Distillation ---")
-    distilled_model, distillation_summary = knowledge_distillation(
-        student_key, model_key, student_model, student_tokenizer, original_model,
-        temperature=temperature, alpha=alpha, epochs=distill_epochs, output_dir=COMPRESSION_OUTPUT_DIR
-    )
-    if do_save_models:
-        save_model_state(distilled_model, model_key, compression_type="knowledge_distillation", output_dir=COMPRESSION_OUTPUT_DIR, summary=distillation_summary)
+    else:
+        # Load student model (BEFORE doing compressions)
+        print("\n=== LOADING STUDENT MODEL - before distillation ===")
+        student_model, student_tokenizer = load_student_model(student_key=student_key, num_labels=5, device=device)
+
+        # Prepare datasets for evaluation (NOW we have both tokenizers)
+        print("\n=== PREPARING DATASETS ===")
+        _, _, test_dataset = prepare_dataset(original_tokenizer, max_length=max_length)
+        _, _, student_test_dataset = prepare_dataset(student_tokenizer, max_length=max_length)
+
+        # Apply compressions (NOW we have everything loaded)
+        print("\n=== APPLYING COMPRESSIONS ===")
+        
+        # QUANTIZATION
+        print("\n--- Quantization ---")
+        q_model = quantize_model(copy.deepcopy(original_model), model_key,  dtype=torch.qint8)
+        if do_save_models:
+            save_model_state(q_model, model_key, compression_type="quantization", output_dir=COMPRESSION_OUTPUT_DIR)
+
+        # PRUNING
+        print("\n--- Pruning ---")
+        p_model = global_pruning_linears(copy.deepcopy(original_model), amount=amount, make_permanent=True)
+        if do_save_models:
+            save_model_state(p_model, model_key, compression_type="pruning", output_dir=COMPRESSION_OUTPUT_DIR)
+        
+        # KNOWLEDGE DISTILLATION
+        print("\n--- Knowledge Distillation ---")
+        distilled_model, distillation_summary = knowledge_distillation(
+            student_key, model_key, student_model, student_tokenizer, original_model,
+            temperature=temperature, alpha=alpha, epochs=distill_epochs, output_dir=COMPRESSION_OUTPUT_DIR
+        )
+        if do_save_models:
+            save_model_state(distilled_model, model_key, compression_type="knowledge_distillation", output_dir=COMPRESSION_OUTPUT_DIR, summary=distillation_summary)
 
 
     # COMPREHENSIVE EVALUATION - here we will add a loading function
@@ -178,15 +168,14 @@ if __name__ == "__main__":
 
     
     # Training parameters
-    distill_epochs = 1 #to change to 5
+    distill_epochs = 5 #to change to 5
     
-
     try:
         for model_key in compression_configs.keys(): 
             results = main(
                 model_key=model_key, 
                 distill_epochs=distill_epochs,
-                do_train=True, #if not - provides already trained models from paths - make it work! 
+                do_train=False, #if not training - loading state dicts from the already compressed models 
                 do_save_models=True, 
                 do_save_reports=True,
                 amount=amount,

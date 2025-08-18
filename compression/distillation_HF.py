@@ -52,7 +52,7 @@ def compute_metrics(pred):
 
 #excepts student_model, student_tokenizer, original_model
 def knowledge_distillation(student_key, model_key, student_model, student_tokenizer, original_model, temperature: float, alpha: float, epochs: int, output_dir=COMPRESSION_OUTPUT_DIR):
-    summary_path = Path(output_dir) / model_key / f"{student_key}_knowledge_distillation_summary.json"
+    summary_path = Path(output_dir) / model_key / f"{model_key}_knowledge_distillation_summary.json"
     training_summary = None
 
     print("\n=== STARTING DISTILLATION ===")
@@ -92,7 +92,6 @@ def knowledge_distillation(student_key, model_key, student_model, student_tokeni
     print("Student model size:", sum(p.numel() for p in student_model.parameters()))
 
     trained_model = trainer_distill.model
-    state_dict = trained_model.state_dict()
     accuracy = trainer_distill.evaluate()["eval_accuracy"]
     training_summary = {
         "model_key": model_key,
@@ -104,16 +103,6 @@ def knowledge_distillation(student_key, model_key, student_model, student_tokeni
     # saving training summary (model saving is handled outside for all models)
     with open(summary_path, "w") as f:
         json.dump(training_summary, f, indent=4)
-#i'm changing so that we don't load trained model here
-# else:
-#     # load trained student model and summary (r maybe just summary? then i  should save it)
-#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#     trained_model, _ = load_student_model(student_key=student_key, num_labels=5, load_trained=True, device=device)
-#     if summary_path.exists():
-#         with open(summary_path, "r") as f:
-#             training_summary = json.load(f)
-#     else:
-#         print(f"⚠️ No training summary found at {summary_path}. Returning None.")
-#         training_summary = None
+
     return trained_model, training_summary
 

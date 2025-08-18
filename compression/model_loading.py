@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from models.model_config import model_configs
 from .compression_configs import compression_configs
+import torch
 
 # # assumdict = {
 #     "state_dict": model.state_dict(),
@@ -10,16 +11,23 @@ from .compression_configs import compression_configs
 #     "best_acc": best_acc
 # }
 
+#improve it...
 
-
-def load_pt_model(model_key: str, model_name: str, model_class: type, tokenizer_class: type, state_dict: dict, num_labels: int = 5, device: str | None = None):
+def load_pt_model(model_key: str, state_dict: dict, num_labels: int = 5, device: str | None = None):
     #getting (model_dict_path: dict, model_key: str, num_labels: int = 5, device: str | None = None):
     #build model based on config
-    
+        # Load model configuration
+    base_model_name = model_key.split('_')[0] #turn "bertweet_HF" to "bertweet" to access model architecture from model_configs
+    config = model_configs[base_model_name]
+    model_class = config["model_class"]
+    print(f'model class is: {model_class}')
+    tokenizer_class = config["tokenizer_class"]
+    print(f'tokenizer class is: {tokenizer_class}')
+    model_name = config["model_name"]
     tokenizer = tokenizer_class.from_pretrained(model_name)
     model = model_class.from_pretrained(model_name, num_labels=num_labels)
-
-    model.load_state_dict(state_dict)
+  
+    model.load_state_dict(state_dict) #loading saved state dict for original model
     model.to(device).eval()
     return model, tokenizer
 
@@ -33,63 +41,55 @@ def load_student_model(student_key: str, num_labels: int = 5, device: str | None
 
     student_model.to(device)
 
-    return student_model, student_tokenizer, student_model_name, student_model_class, student_tokenizer_class
+    return student_model, student_tokenizer 
 
-
-def load_compressed_models(model_key, model_class, tokenizer_class, model_name, num_labels, device):
-    """Load all compressed versions (quantized, pruned, distilled) from saved state_dicts."""
-
-    cfg = compression_configs[model_key]
-    tokenizer = tokenizer_class.from_pretrained(model_name)
-
-    models = {}
-
-    for comp_type, path in [
-        ("quantization", cfg["quantization_path"]),
-        ("pruning", cfg["pruning_path"]),
-        ("knowledge_distillation", cfg["knowledge_distillation_path"]),
-    ]:
-        if path.exists():
-            print(f"Loading {comp_type} model from {path}")
-            state_dict = torch.load(path, map_location=device)
-
-            model = model_class.from_pretrained(model_name, num_labels=num_labels)
-            model.load_state_dict(state_dict)
-            model.to(device).eval()
-            models[comp_type] = model
-        else:
-            print(f"⚠️ Warning: No saved {comp_type} model found at {path}")
-            models[comp_type] = None
-
-    return models, tokenizer
-
-
-
-def load_compressed_models(model_key: str, model_name: str, base_model_name: str, model_class: type, tokenizer_class: type, num_labels: int = 5, device: str | None = None):
-    #getting (model_dict_path: dict, model_key: str, num_labels: int = 5, device: str | None = None):
-    #build model based on config
-    '''compression_configs = {
-    "covidbert_HF": {
-        "base_path": PROJECT_ROOT / "results/best_models/covidbert_HF_study_augmented_state_dict.pt",
-        "quantization_path": PROJECT_ROOT / "compression/saved_compressed/covidbert_HF/covidbert_HF_quantization_model.pt",
-        "pruning_path": PROJECT_ROOT / "compression/saved_compressed/covidbert_HF/covidbert_HF_pruning_model.pt",
-        "knowledge_distillation_path": PROJECT_ROOT / "compression/saved_compressed/covidbert_HF/covidbert_HF_knowledge_distillation_model.pt"
-'''
+def load_compressed_models(model_key: str, student_key: str, num_labels: int = 5, device: str | None = None):
     """
-    Load original + compressed models (quantized, pruned, distilled) if available.
-    Returns a dictionary of models keyed by type.
+    Load original and compressed versions (quantized, pruned, distilled) of a model.
+    Uses student_key pointer in model_configs for distilled models.
     """
-    # tokenizer = tokenizer_class.from_pretrained(base_model_name) #original model's tokenizer (from model_config)
-    # model = model_class.from_pretrained(base_model_name, num_labels=num_labels)
-    paths = compression_configs[model_key]
+   
+    # Prepare configs
+    c_config = compression_configs[model_key]
 
-    original_model = model_class.from_pretrained(base_model_name, num_labels=num_labels)
-    original_model.load_State_dict(state_dict)
-    q_model = model_class.from_pretrained(base_model_name, num_labels=num_labels)
-    model.load_state_dict(state_dict)
-    model.to(device).eval()
-    return model, tokenizer
+    #error handling
+    for key in ["quantization_path", "pruning_path", "knowledge_distillation_path"]:
+        path = c_config.get(key)
+        if path is None or not Path(path).exists():
+            raise FileNotFoundError(f"Path for {key} does not exist: {path}. Did you train the models?")
 
 
+    # Quantized model
+    q_model, q_tokenizer = load_pt_model(
+        model_key=model_key,
+        state_dict=torch.load(c_config["quantization_path"], map_location="cpu"),
+        num_labels=num_labels,
+        device=device
+    )
+
+    #pruned model
+    p_model, p_tokenizer = load_pt_model(
+        model_key=model_key,
+        state_dict=torch.load(c_config["pruning_path"], map_location="cpu"),
+        num_labels=num_labels,
+        device=device
+    )
+
+    # Distilled model (student architecture + KD weights)
+    distilled_model, distilled_tokenizer = load_student_model(
+        student_key=student_key,
+        num_labels=num_labels,
+        device=device
+    )
+    distilled_model.eval()
+
+    kd_path = c_config.get("knowledge_distillation_path")
+    kd_state_dict = torch.load(kd_path, map_location="cpu")
+    distilled_model.load_state_dict(kd_state_dict)
+    return {
+        "quantized": (q_model, q_tokenizer),
+        "pruned": (p_model, p_tokenizer),
+        "distilled": (distilled_model, distilled_tokenizer)
+    }
 
 
