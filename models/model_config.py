@@ -10,6 +10,8 @@ model_configs = {
         "tokenizer_class": BertweetTokenizer,
         "base_attr": "roberta",
         "max_length": 128,  # critical for bertweet
+        "student_key": "distilroberta",
+        #this part is used for the UI (can be changed later to use the compression_configs)        
         "is_state_dict": True,
         "best_path": PROJECT_ROOT / "results/best_models/bertweet_HF_study_augmented_state_dict.pt",
         "description": "Best Fine-tuned BERTweet mode using HF"
@@ -20,11 +22,12 @@ model_configs = {
         "tokenizer_class": BertTokenizer,
         "base_attr": "bert",
         "max_length": 128,  ##critical for covidbert
+        "student_key": "distilbert",
         "is_state_dict": True,
         "best_path": PROJECT_ROOT / "results/best_models/covidbert_pytorch_study_augmented_state_dict.pt",
         "description": "Full fine-tuned CovidBERT model"
     },
-        "Distilled_BerTweet": { # change in main_compress and ui from Compressed BertWeet
+        "distilroberta": { # change in main_compress and ui from Compressed BertWeet # student of bertweet
         "model_name": "distilroberta-base",
         "model_class": RobertaForSequenceClassification,
         "tokenizer_class": RobertaTokenizer,
@@ -35,7 +38,7 @@ model_configs = {
         "description": "Distilled BERTweet model"
     },
 
-    "Distilled_CovidBert": {
+        "distilbert": { # studnet of covidbert
         "model_name": "distilbert-base-uncased",
         "model_class": DistilBertForSequenceClassification,
         "tokenizer_class": DistilBertTokenizer,

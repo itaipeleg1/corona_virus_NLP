@@ -11,19 +11,18 @@ from compression.save_compressed_models import save_model_state
 from config import DATA_DIR, COMPRESSION_OUTPUT_DIR
 from models.model_config import model_configs
 from models.data_preparation import prepare_dataset
-
+from compression.compression_configs import compression_configs
 # # Configuration variables
 # model_dict_path = "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt"
 # model_key = "bertweet"  # or "covidbert"
 
-def main(model_key, distill_epochs: int, do_train_distill: bool, do_save_models: bool, do_save_reports: bool):
-    # Set global parameters based on model_key
-    if model_key == 'bertweet':
-        student_key = 'Distilled BerTweet'
-    else:
-        student_key = 'Distilled CovidBert'
+def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool):
+    print(f"Starting compression pipeline for {model_key}")
+    print("="*60)
     
-    # Compression hyperparameters
+    model_dict_path = compression_configs[model_key]["base_path"] #access saved best fine tuned model path
+    
+    # Compression hyperparameters - move outside the function!! as a hyperparameter
     amount = 0.2  # pruning amount
     temperature = 3.0  # distillation temperature
     alpha = 0.7  # distillation alpha
@@ -32,13 +31,22 @@ def main(model_key, distill_epochs: int, do_train_distill: bool, do_save_models:
     print(f"Using device: {device}")
     
     # Load model configuration
-    config = model_configs[model_key]
+    base_model_name = model_key.split('_')[0] #turn "bertweet_HF" to "bertweet" to access model architecture from model_configs
+    print(f"Base model name: {base_model_name}")
+
+    config = model_configs[base_model_name]
     model_class = config["model_class"]
     tokenizer_class = config["tokenizer_class"]
     model_name = config["model_name"]
     max_length = config["max_length"]
-    model_dict_path = config["best_path"]
+    student_key = config["student_key"]
 
+    #  # Set the chosen student based on base_model_name
+    # if base_model_name == 'bertweet':
+    #     student_key = 'distilroberta' #this will later be accessed to use the architecture (pretrained model and tokenizer) for student distillation
+    # else:
+    #     student_key = 'distilbert'
+    
     # Load checkpoint and extract state_dict
     print("Loading checkpoint...")
     checkpoint = torch.load(model_dict_path, map_location=device)
@@ -50,7 +58,7 @@ def main(model_key, distill_epochs: int, do_train_distill: bool, do_save_models:
         state_dict = checkpoint  # assume it's already a state_dict
         print("Loaded state_dict directly")
     
-    # 1. Load original model
+    # Load original model
     print("\n=== LOADING ORIGINAL MODEL ===")
     original_model, original_tokenizer = load_pt_model(
         model_key=model_key, 
@@ -62,42 +70,43 @@ def main(model_key, distill_epochs: int, do_train_distill: bool, do_save_models:
         device=device
     )
     
-    # 2. Load student model (BEFORE doing compressions)
+    # Load student model (BEFORE doing compressions)
     print("\n=== LOADING STUDENT MODEL ===")
-    student_model, student_tokenizer = load_student_model(student_key=student_key, num_labels=5, device=device)
     
-    # 3. Prepare datasets for evaluation (NOW we have both tokenizers)
+    student_model, student_tokenizer, student_model_name, student_model_class, student_tokenizer_class = load_student_model(student_key=student_key, num_labels=5, device=device)
+    
+    # Prepare datasets for evaluation (NOW we have both tokenizers)
     print("\n=== PREPARING DATASETS ===")
     _, _, test_dataset = prepare_dataset(original_tokenizer, max_length=max_length)
     _, _, student_test_dataset = prepare_dataset(student_tokenizer, max_length=max_length)
 
     
-    # 4. Apply compressions (NOW we have everything loaded)
+    # Apply compressions (NOW we have everything loaded)
     print("\n=== APPLYING COMPRESSIONS ===")
     
-    # 4A. QUANTIZATION
+    # QUANTIZATION
     print("\n--- Quantization ---")
-    q_model = quantize_model(copy.deepcopy(original_model), dtype=torch.qint8)
+    q_model = quantize_model(copy.deepcopy(original_model), model_key, do_train=do_train, dtype=torch.qint8)
     if do_save_models:
         save_model_state(q_model, model_key, compression_type="quantization", output_dir=COMPRESSION_OUTPUT_DIR)
-    
-    # 4B. PRUNING  
+
+    # PRUNING
     print("\n--- Pruning ---")
     p_model = global_pruning_linears(copy.deepcopy(original_model), amount=amount, make_permanent=True)
     if do_save_models:
         save_model_state(p_model, model_key, compression_type="pruning", output_dir=COMPRESSION_OUTPUT_DIR)
     
-    # 4C. KNOWLEDGE DISTILLATION
+    # KNOWLEDGE DISTILLATION
     print("\n--- Knowledge Distillation ---")
     distilled_model, distillation_summary = knowledge_distillation(
-        student_key, model_key, student_model, student_tokenizer, original_model, do_train_distill=do_train_distill,
+        student_key, model_key, student_model, student_tokenizer, original_model, do_train=do_train,
         temperature=temperature, alpha=alpha, epochs=distill_epochs, output_dir=COMPRESSION_OUTPUT_DIR
     )
     if do_save_models:
         save_model_state(distilled_model, model_key, compression_type="knowledge_distillation", output_dir=COMPRESSION_OUTPUT_DIR, summary=distillation_summary)
 
 
-    # 5. COMPREHENSIVE EVALUATION
+    # COMPREHENSIVE EVALUATION - here we will add a loading function
     print("\n=== EVALUATION PHASE ===")
     sample_text = "COVID-19 vaccines are effective and safe."
     
@@ -132,11 +141,11 @@ def main(model_key, distill_epochs: int, do_train_distill: bool, do_save_models:
         print(f"  F1 macro: {metrics['f1_macro']:.4f}")
         print(f"  F1 weighted: {metrics['f1_weighted']:.4f}")
         print(f"  AUC: {metrics['auc']:.4f}")
-        print(f"  Confusion Matrix:\n{metrics['confusion matrix']}")
+        print(f"  Confusion Matrix:\n{metrics['confusion_matrix']}")
         print(f"  Size (MB): {metrics['size_MB']:.2f}")
         print(f"  Inference Time (ms): {metrics['inference_time_ms']}")
-        print(f"  GPU Memory (MB): {metrics.get('gpu_memory', 'N/A')}")
-        print(f"  CPU Memory (MB): {metrics['cpu_memory']}")
+        # print(f"  GPU Memory (MB): {metrics.get('gpu_memory', 'N/A')}")
+        # print(f"  CPU Memory (MB): {metrics['cpu_memory']}")
     
     # Calculate compression ratios
     print(f"\n" + "-"*40)
@@ -161,32 +170,33 @@ def main(model_key, distill_epochs: int, do_train_distill: bool, do_save_models:
 
 if __name__ == "__main__":
     # Configuration
-    model_keys = ["bertweet", "covidbert"]
+    # model_keys = ["bertweet", "covidbert"]
+    model_keys = ["bertweet_HF", "bertweet_pytorch", "covidbert_HF", "bertweet_pytorch"]
     compression_types = ['quantization', 'pruning', 'knowledge_distillation']
     
     # Current model to process (change this to switch between models)
-    current_model_key = "covidbert"
+
     
     # Training parameters
     distill_epochs = 1 #to change to 5
     
-    # Run compression pipeline
-    print(f"Starting compression pipeline for {current_model_key}")
-    print("="*60)
-    
+
     try:
-        results = main(
-            model_key=current_model_key, 
-            distill_epochs=distill_epochs,
-            do_train_distill=True, 
-            do_save_models=True, 
-            do_save_reports=True
-        )
-        
-        print("\n" + "="*60)
-        print("PIPELINE COMPLETED SUCCESSFULLY!")
-        print("="*60)
-        
+        for model_key in compression_configs.keys(): 
+            results = main(
+                model_key=model_key, 
+                distill_epochs=distill_epochs,
+                do_train=True, #if not - provides already trained models from paths - make it work! 
+                do_save_models=True, 
+                do_save_reports=True
+            )
+                # Run compression pipeline
+    
+    
+            print("\n" + "="*60)
+            print("PIPELINE COMPLETED SUCCESSFULLY!")
+            print("="*60)
+            
     except Exception as e:
         print(f"\nERROR: Pipeline failed with: {e}")
         import traceback

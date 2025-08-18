@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 from torch.utils.data import DataLoader
 
-def evaluate_performance(model, test_dataset, device, n_classes=5, max_samples=100):
+def evaluate_performance(model, test_dataset, device, n_classes=5, batch_size=32, max_samples=60):
 
     print(f"Starting accuracy evaluation on {device}")
     print(f"Dataset length: {len(test_dataset)}")
@@ -19,35 +19,31 @@ def evaluate_performance(model, test_dataset, device, n_classes=5, max_samples=1
     preds = []
     labels = []
     probs = []
-    
-    for i, batch in enumerate(test_dataset):
-        if max_samples is not None and i >= max_samples:
-            print(f"Stopping at {i} samples for testing")
-            break
-            
-        try:
-            input_ids = batch['input_ids'].unsqueeze(0).to(device)
-            attention_mask = batch['attention_mask'].unsqueeze(0).to(device)
-            label = int(batch['labels']) if isinstance(batch['labels'], (int, np.integer)) else batch['labels'].item()
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-            with torch.no_grad():
-                output = model(input_ids=input_ids, attention_mask=attention_mask)
-                logits = output.logits  # (1, n_classes)
-                probs_tensor = torch.softmax(logits, dim=-1)  # (1, n_classes)
-                pred = torch.argmax(output.logits, dim=-1).item() #on cpu by definition
+    seen = 0
+    for batch in test_loader:
+        input_ids = batch['input_ids'].to(device)
+        attention_mask = batch['attention_mask'].to(device)
+        batch_labels = batch['labels'].cpu().numpy()
 
-            preds.append(pred)
-            labels.append(label)
-            probs.append(probs_tensor.squeeze(0).detach().cpu().numpy())  # move to CPU and convert to numpy
-            
+        with torch.no_grad():
+            output = model(input_ids=input_ids, attention_mask=attention_mask)
+            logits = output.logits  # (1, n_classes)
+            probs_tensor = torch.softmax(logits, dim=-1).cpu().numpy()  # (1, n_classes)
+            batch_preds = np.argmax(probs_tensor, axis=-1)  # (1,)
 
-        except Exception as e:
-            print(f"Error on sample {i}: {e}")
+        preds.extend(batch_preds)
+        labels.extend(batch_labels)
+        probs.append(probs_tensor)  # move to CPU and convert to numpy
+        
+        seen += input_ids.size(0)
+        if max_samples is not None and seen >= max_samples: 
             break
 
-    all_labels = np.array(labels)
-    all_preds = np.array(preds)
-    all_probs = np.vstack(probs)
+    all_labels = np.array(labels)[:max_samples]
+    all_preds = np.array(preds)[:max_samples]
+    all_probs = np.vstack(probs)[:max_samples]
 
     accuracy = accuracy_score(all_labels, all_preds)
     f1_weighted = f1_score(all_labels, all_preds, average='weighted')
@@ -66,12 +62,12 @@ def evaluate_performance(model, test_dataset, device, n_classes=5, max_samples=1
     print(cm)                        
     print(f"Accuracy evaluation complete: {len(preds)} predictions made")
     print(f'accuracy: {accuracy:.4f}, f1_macro: {f1_macro:.4f}, f1_weighted: {f1_weighted:.4f}, auc: {auc:.4f}')
-    
+
     return {'accuracy': accuracy,
             'f1 macro': f1_macro,
             'f1 weighted': f1_weighted,
             'auc': auc,
-            'confusion matrix': cm,
+            'confusion_matrix': cm,
     }
 
 def get_model_size_in_mb(model):
@@ -105,71 +101,71 @@ def measure_inference_time(model, test_dataset, device, runs=100, batch_size=8):
     return round(avg_time_ms, 2)
 
 
-def measure_gpu_memory(model, tokenizer, sample_text, device='cuda'):
-    if device != 'cuda' or not torch.cuda.is_available():
-        print("GPU not available. Skipping GPU memory measurement.")
-        return None
+# def measure_gpu_memory(model, tokenizer, sample_text, device='cuda'):
+#     if device != 'cuda' or not torch.cuda.is_available():
+#         print("GPU not available. Skipping GPU memory measurement.")
+#         return None
 
-    torch.cuda.reset_peak_memory_stats(device)
-    model.to(device)
-    model.eval()
-    inputs = tokenizer(sample_text, return_tensors="pt").to(device)
-
-    with torch.no_grad():
-        _ = model(**inputs)
-
-    mem_used_mb = torch.cuda.max_memory_allocated(device) / 1024**2
-    return round(mem_used_mb, 2)
-
-# def measure_cpu_memory(model, tokenizer, sample_text, device='cpu'):
+#     torch.cuda.reset_peak_memory_stats(device)
 #     model.to(device)
 #     model.eval()
 #     inputs = tokenizer(sample_text, return_tensors="pt").to(device)
 
-#     process = psutil.Process(os.getpid())
-#     mem_before = process.memory_info().rss
 #     with torch.no_grad():
 #         _ = model(**inputs)
-#     mem_after = process.memory_info().rss
-#     mem_used_mb = (mem_after - mem_before) / (1024 * 1024)
+
+#     mem_used_mb = torch.cuda.max_memory_allocated(device) / 1024**2
 #     return round(mem_used_mb, 2)
 
+# # def measure_cpu_memory(model, tokenizer, sample_text, device='cpu'):
+# #     model.to(device)
+# #     model.eval()
+# #     inputs = tokenizer(sample_text, return_tensors="pt").to(device)
 
-def measure_cpu_memory(model, test_dataset, device="cpu", batch_size=32, max_samples=100, include_warmup=True):
-    """
-    Measures peak process RSS (MB) during inference over up to `max_samples` examples.
-    Assumes each dataset item is a dict of tensors with keys like input_ids, attention_mask, (labels optional).
-    """
-    model.to("cpu").eval()
-    loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # default collate stacks dicts of tensors
-    proc = psutil.Process(os.getpid()) #gets my currect progress for memory usage
+# #     process = psutil.Process(os.getpid())
+# #     mem_before = process.memory_info().rss
+# #     with torch.no_grad():
+# #         _ = model(**inputs)
+# #     mem_after = process.memory_info().rss
+# #     mem_used_mb = (mem_after - mem_before) / (1024 * 1024)
+# #     return round(mem_used_mb, 2)
 
-    # warmup phase
-    if include_warmup:
-        with torch.inference_mode():
-            for batch in loader:
-                inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
-                _ = model(**inputs)
-                break  
 
-    # baseline after warmup
-    baseline = proc.memory_info().rss #gives resident set size (RSS) in bytes (physical memory)
-    peak = baseline #maximum memory used
-    seen = 0 #  amount of seen samples so far
+# def measure_cpu_memory(model, test_dataset, device="cpu", batch_size=32, max_samples=60, include_warmup=True):
+#     """
+#     Measures peak process RSS (MB) during inference over up to `max_samples` examples.
+#     Assumes each dataset item is a dict of tensors with keys like input_ids, attention_mask, (labels optional).
+#     """
+#     model.to("cpu").eval()
+#     loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # default collate stacks dicts of tensors
+#     proc = psutil.Process(os.getpid()) #gets my currect progress for memory usage
 
-    with torch.inference_mode():
-        for batch in loader:
-            inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
-            _ = model(**inputs)
-            current_memory = proc.memory_info().rss #measures
-            if current_memory > peak:
-                peak = current_memory
+#     # warmup phase
+#     if include_warmup:
+#         with torch.inference_mode():
+#             for batch in loader:
+#                 inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
+#                 _ = model(**inputs)
+#                 break  
 
-            seen += next(iter(inputs.values())).size(0)  # batch size from any tensor
-            if max_samples is not None and seen >= max_samples:
-                break
+#     # baseline after warmup
+#     baseline = proc.memory_info().rss #gives resident set size (RSS) in bytes (physical memory)
+#     peak = baseline #maximum memory used
+#     seen = 0 #  amount of seen samples so far
 
-    return round((peak - baseline) / (1024**2), 3) #MB
+#     with torch.inference_mode():
+#         for batch in loader:
+#             inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
+#             _ = model(**inputs)
+#             current_memory = proc.memory_info().rss #measures
+#             if current_memory > peak:
+#                 peak = current_memory
+
+#             seen += next(iter(inputs.values())).size(0)  # batch size from any tensor
+#             if max_samples is not None and seen >= max_samples:
+#                 break
+
+#     return round((peak - baseline) / (1024**2), 3) #MB
 
 def evaluate_model(model, tokenizer, test_dataset, sample_text, device: str):
 
@@ -180,11 +176,11 @@ def evaluate_model(model, tokenizer, test_dataset, sample_text, device: str):
         "auc": metrics['auc'],
         "f1_macro": metrics['f1 macro'],
         "f1_weighted": metrics['f1 weighted'],
-        "confusion_matrix": metrics['confusion matrix'],
+        "confusion_matrix": metrics.get('confusion_matrix', None),
         "size_MB": get_model_size_in_mb(model),
         "inference_time_ms": measure_inference_time(model, test_dataset, device),
-        "gpu_memory": measure_gpu_memory(model, tokenizer, sample_text, device),
-        "cpu_memory": measure_cpu_memory(model, test_dataset, device),
+        # "gpu_memory": measure_gpu_memory(model, tokenizer, sample_text, device),
+        # "cpu_memory": measure_cpu_memory(model, test_dataset, device),
     }
 
 def save_metrics_csv(metrics_dict, model_key):
