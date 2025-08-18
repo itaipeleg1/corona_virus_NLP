@@ -16,16 +16,11 @@ from compression.compression_configs import compression_configs
 # model_dict_path = "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt"
 # model_key = "bertweet"  # or "covidbert"
 
-def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool):
+def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool, amount=amount, temperature=temperature, alpha=alpha):
     print(f"Starting compression pipeline for {model_key}")
     print("="*60)
     
     model_dict_path = compression_configs[model_key]["base_path"] #access saved best fine tuned model path
-    
-    # Compression hyperparameters - move outside the function!! as a hyperparameter
-    amount = 0.2  # pruning amount
-    temperature = 3.0  # distillation temperature
-    alpha = 0.7  # distillation alpha
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
@@ -86,7 +81,7 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
     
     # QUANTIZATION
     print("\n--- Quantization ---")
-    q_model = quantize_model(copy.deepcopy(original_model), model_key, do_train=do_train, dtype=torch.qint8)
+    q_model = quantize_model(copy.deepcopy(original_model), model_key,  dtype=torch.qint8)
     if do_save_models:
         save_model_state(q_model, model_key, compression_type="quantization", output_dir=COMPRESSION_OUTPUT_DIR)
 
@@ -99,7 +94,7 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
     # KNOWLEDGE DISTILLATION
     print("\n--- Knowledge Distillation ---")
     distilled_model, distillation_summary = knowledge_distillation(
-        student_key, model_key, student_model, student_tokenizer, original_model, do_train=do_train,
+        student_key, model_key, student_model, student_tokenizer, original_model,
         temperature=temperature, alpha=alpha, epochs=distill_epochs, output_dir=COMPRESSION_OUTPUT_DIR
     )
     if do_save_models:
@@ -174,6 +169,11 @@ if __name__ == "__main__":
     model_keys = ["bertweet_HF", "bertweet_pytorch", "covidbert_HF", "bertweet_pytorch"]
     compression_types = ['quantization', 'pruning', 'knowledge_distillation']
     
+    # Compression hyperparameters 
+    amount = 0.2  # pruning amount
+    temperature = 3.0  # distillation temperature
+    alpha = 0.7  # distillation alpha
+    
     # Current model to process (change this to switch between models)
 
     
@@ -188,7 +188,10 @@ if __name__ == "__main__":
                 distill_epochs=distill_epochs,
                 do_train=True, #if not - provides already trained models from paths - make it work! 
                 do_save_models=True, 
-                do_save_reports=True
+                do_save_reports=True,
+                amount=amount,
+                temperature=temperature,
+                alpha=alpha
             )
                 # Run compression pipeline
     
