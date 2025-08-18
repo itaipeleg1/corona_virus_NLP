@@ -7,8 +7,8 @@ from compression.pruning import global_pruning_linears
 from compression.distillation_HF import knowledge_distillation
 from compression.compression_evaluation import evaluate_model, save_metrics_csv
 from compression.save_compressed_models import save_model_state
-from compression.compression_config import COMPRESSION_OUTPUT_DIR
-from config import DATA_DIR
+#from compression.compression_config import COMPRESSION_OUTPUT_DIR
+from config import DATA_DIR, COMPRESSION_OUTPUT_DIR
 from models.model_config import model_configs
 from models.data_preparation import prepare_dataset
 
@@ -16,12 +16,12 @@ from models.data_preparation import prepare_dataset
 # model_dict_path = "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt"
 # model_key = "bertweet"  # or "covidbert"
 
-def main(model_key, distill_epochs: int, do_save_models: bool, do_save_reports: bool):
+def main(model_key, distill_epochs: int, do_train_distill: bool, do_save_models: bool, do_save_reports: bool):
     # Set global parameters based on model_key
     if model_key == 'bertweet':
-        student_key = 'student_bertweet_roberta'
+        student_key = 'Distilled BerTweet'
     else:
-        student_key = 'student_covidbert_bert'
+        student_key = 'Distilled CovidBert'
     
     # Compression hyperparameters
     amount = 0.2  # pruning amount
@@ -90,13 +90,13 @@ def main(model_key, distill_epochs: int, do_save_models: bool, do_save_reports: 
     # 4C. KNOWLEDGE DISTILLATION
     print("\n--- Knowledge Distillation ---")
     distilled_model, distillation_summary = knowledge_distillation(
-        student_key, student_model, student_tokenizer, original_model, 
-        temperature=temperature, alpha=alpha, epochs=distill_epochs
+        student_key, model_key, student_model, student_tokenizer, original_model, do_train_distill=do_train_distill,
+        temperature=temperature, alpha=alpha, epochs=distill_epochs, output_dir=COMPRESSION_OUTPUT_DIR
     )
     if do_save_models:
-        save_model_state(distilled_model, model_key, compression_type="knowledge_distillation", output_dir=COMPRESSION_OUTPUT_DIR)
-    
-    
+        save_model_state(distilled_model, model_key, compression_type="knowledge_distillation", output_dir=COMPRESSION_OUTPUT_DIR, summary=distillation_summary)
+
+
     # 5. COMPREHENSIVE EVALUATION
     print("\n=== EVALUATION PHASE ===")
     sample_text = "COVID-19 vaccines are effective and safe."
@@ -113,7 +113,7 @@ def main(model_key, distill_epochs: int, do_save_models: bool, do_save_reports: 
     print("\n--- Evaluating Distilled Model ---")
     distilled_metrics = evaluate_model(distilled_model, student_tokenizer, student_test_dataset, sample_text, device=device)
     
-    # 6. COMPILE AND SAVE RESULTS
+
     metrics_dict = {
         "original": original_metrics,
         "quantized": quantized_metrics,
@@ -129,6 +129,10 @@ def main(model_key, distill_epochs: int, do_save_models: bool, do_save_reports: 
     for method, metrics in metrics_dict.items():
         print(f"\n{method.upper()}:")
         print(f"  Accuracy: {metrics['accuracy']:.4f}")
+        print(f"  F1 macro: {metrics['f1_macro']:.4f}")
+        print(f"  F1 weighted: {metrics['f1_weighted']:.4f}")
+        print(f"  AUC: {metrics['auc']:.4f}")
+        print(f"  Confusion Matrix:\n{metrics['confusion matrix']}")
         print(f"  Size (MB): {metrics['size_MB']:.2f}")
         print(f"  Inference Time (ms): {metrics['inference_time_ms']}")
         print(f"  GPU Memory (MB): {metrics.get('gpu_memory', 'N/A')}")
@@ -164,7 +168,7 @@ if __name__ == "__main__":
     current_model_key = "covidbert"
     
     # Training parameters
-    distill_epochs = 5
+    distill_epochs = 1 #to change to 5
     
     # Run compression pipeline
     print(f"Starting compression pipeline for {current_model_key}")
@@ -173,7 +177,8 @@ if __name__ == "__main__":
     try:
         results = main(
             model_key=current_model_key, 
-            distill_epochs=distill_epochs, 
+            distill_epochs=distill_epochs,
+            do_train_distill=True, 
             do_save_models=True, 
             do_save_reports=True
         )

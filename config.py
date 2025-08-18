@@ -6,3 +6,4 @@ PROJECT_ROOT = Path(__file__).resolve().parent # Project root (automatically cal
 DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
 
+COMPRESSION_OUTPUT_DIR = PROJECT_ROOT / "compression" / "saved_compressed"

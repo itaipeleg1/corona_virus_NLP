@@ -24,7 +24,7 @@ model_configs = {
         "best_path": PROJECT_ROOT / "results/best_models/covidbert_pytorch_study_augmented_state_dict.pt",
         "description": "Full fine-tuned CovidBERT model"
     },
-        "Distilled BerTweet": { # change in main_compress and ui from Compressed BertWeet
+        "Distilled_BerTweet": { # change in main_compress and ui from Compressed BertWeet
         "model_name": "distilroberta-base",
         "model_class": RobertaForSequenceClassification,
         "tokenizer_class": RobertaTokenizer,
@@ -35,7 +35,7 @@ model_configs = {
         "description": "Distilled BERTweet model"
     },
 
-    "Distilled CovidBert": {
+    "Distilled_CovidBert": {
         "model_name": "distilbert-base-uncased",
         "model_class": DistilBertForSequenceClassification,
         "tokenizer_class": DistilBertTokenizer,
