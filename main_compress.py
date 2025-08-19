@@ -90,19 +90,18 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
 
     # COMPREHENSIVE EVALUATION - here we will add a loading function
     print("\n=== EVALUATION PHASE ===")
-    sample_text = "COVID-19 vaccines are effective and safe."
     
     print("\n--- Evaluating Original Model ---")
-    original_metrics = evaluate_model(original_model, original_tokenizer, test_dataset, sample_text, device=device)
+    original_metrics = evaluate_model(original_model, test_dataset, device=device)
     
     print("\n--- Evaluating Quantized Model ---")
-    quantized_metrics = evaluate_model(q_model, original_tokenizer, test_dataset, sample_text, device='cpu')  # Quantized models must use CPU
+    quantized_metrics = evaluate_model(q_model,  test_dataset, device='cpu')  # Quantized models must use CPU
 
     print("\n--- Evaluating Pruned Model ---")
-    pruned_metrics = evaluate_model(p_model, original_tokenizer, test_dataset, sample_text, device=device)
+    pruned_metrics = evaluate_model(p_model, test_dataset,  device=device)
 
     print("\n--- Evaluating Distilled Model ---")
-    distilled_metrics = evaluate_model(distilled_model, student_tokenizer, student_test_dataset, sample_text, device=device)
+    distilled_metrics = evaluate_model(distilled_model, student_test_dataset, device=device)
     
 
     metrics_dict = {
@@ -125,21 +124,21 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
         print(f"  AUC: {metrics['auc']:.4f}")
         print(f"  Confusion Matrix:\n{metrics['confusion_matrix']}")
         print(f"  Size (MB): {metrics['size_MB']:.2f}")
-        print(f"  Inference Time (ms): {metrics['inference_time_ms_cpu']}")
-        # print(f"  GPU Memory (MB): {metrics.get('gpu_memory', 'N/A')}")
-        # print(f"  CPU Memory (MB): {metrics['cpu_memory']}")
+        print(f"  Inference Time (ms) on cpu: {metrics['inference_time_ms_cpu']}")
+        print(f"  Inference Time (ms) on GPU: {metrics['inference_time_ms_gpu']}")
+
     
     # Calculate compression ratios
     print(f"\n" + "-"*40)
     print("COMPRESSION RATIOS (vs Original):")
     print("-"*40)
     orig_size = original_metrics['size_MB']
-    orig_time = original_metrics['inference_time_ms']
+    orig_time = original_metrics['inference_time_ms_cpu']
     
     for method, metrics in metrics_dict.items():
         if method != 'original':
             size_ratio = metrics['size_MB'] / orig_size
-            time_ratio = metrics['inference_time_ms'] / orig_time if orig_time > 0 else 1
+            time_ratio = metrics['inference_time_ms_cpu'] / orig_time if orig_time > 0 else 1
             acc_drop = original_metrics['accuracy'] - metrics['accuracy']
             
             print(f"{method}: Size={size_ratio:.2f}x, Speed={time_ratio:.2f}x, Acc_drop={acc_drop:.3f}")
@@ -157,7 +156,7 @@ if __name__ == "__main__":
     compression_types = ['quantization', 'pruning', 'knowledge_distillation']
     
     # Compression hyperparameters 
-    amount = 0.2  # pruning amount
+    amount = 0.3  # pruning amount after wandb tuning
     temperature = 3.0  # distillation temperature
     alpha = 0.7  # distillation alpha
     
@@ -165,7 +164,7 @@ if __name__ == "__main__":
 
     
     # Training parameters
-    distill_epochs = 5 #to change to 5
+    distill_epochs = 1 #to change to 5
     
     try:
         for model_key in compression_configs.keys(): 

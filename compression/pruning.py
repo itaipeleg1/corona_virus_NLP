@@ -17,7 +17,7 @@ def global_pruning_linears(model, amount: float, make_permanent=True):
 
     if not linear_layers:
         print("No eligible Linear layers found for pruning.")
-        return model, {"sparsity_linear": 0.0, "total_linear_params": 0}
+        return model
 
     prune.global_unstructured(
         linear_layers,

@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 from torch.utils.data import DataLoader
 
-def evaluate_performance(model, test_dataset, device, n_classes=5, batch_size=32, max_samples=None):
+def evaluate_performance(model, test_dataset, device, n_classes=5, batch_size=32, max_samples=60):
 
     print(f"Starting accuracy evaluation on {device}")
     print(f"Dataset length: {len(test_dataset)}")
@@ -76,7 +76,7 @@ def get_model_size_in_mb(model):
     total_size_mb = (param_size + buffer_size) / 1024**2
     return total_size_mb
 
-def measure_inference_time_cpu(model, test_dataset, device='cpu', runs=100, batch_size=8):
+def measure_inference_time_cpu(model, test_dataset, device='cpu', runs=40, batch_size=8):
     device = torch.device("cpu")
     model.to(device) # compare all on cpu only for fair competition
     model.eval()
@@ -101,106 +101,50 @@ def measure_inference_time_cpu(model, test_dataset, device='cpu', runs=100, batc
     avg_time_ms = (total_time / runs) * 1000
     return round(avg_time_ms, 2)
 
-def measure_inference_time_gpu(model, test_dataset, device, runs=100, batch_size=8):
+def measure_inference_time_gpu(model, test_dataset, device, runs=40, batch_size=8):
     """
     Measures average inference time (ms) on GPU only.
     Returns None if CUDA is unavailable.
     """
+    
     if not torch.cuda.is_available():
         print(f"CUDA not available for model {model}, skipping GPU timing.")
         return None
 
-    device = torch.device("cuda")
-    model = model.to(device)
-    model.eval()
+    try:
+        device = torch.device("cuda")
+        model = model.to(device)
+        model.eval()
 
-    # Warmup to avoid initial overhead
-    for _ in range(5):
-        batch = [test_dataset[i] for i in range(batch_size)]
-        input_ids = torch.stack([b['input_ids'] for b in batch]).to(device)
-        attention_mask = torch.stack([b['attention_mask'] for b in batch]).to(device)
-        with torch.no_grad():
-            _ = model(input_ids=input_ids, attention_mask=attention_mask)
+        # Warmup to avoid initial overhead
+        for _ in range(5):
+            batch = [test_dataset[i] for i in range(batch_size)]
+            input_ids = torch.stack([b['input_ids'] for b in batch]).to(device)
+            attention_mask = torch.stack([b['attention_mask'] for b in batch]).to(device)
+            with torch.no_grad():
+                _ = model(input_ids=input_ids, attention_mask=attention_mask)
 
-    # Timing GPU
-    torch.cuda.synchronize()
-    start_time = time.time()
-    for _ in range(runs):
-        batch = [test_dataset[i] for i in range(batch_size)]
-        input_ids = torch.stack([b['input_ids'] for b in batch]).to(device)
-        attention_mask = torch.stack([b['attention_mask'] for b in batch]).to(device)
-        with torch.no_grad():
-            _ = model(input_ids=input_ids, attention_mask=attention_mask)
-    torch.cuda.synchronize()
+        # Timing GPU
+        torch.cuda.synchronize()
+        start_time = time.time()
+        for _ in range(runs):
+            batch = [test_dataset[i] for i in range(batch_size)]
+            input_ids = torch.stack([b['input_ids'] for b in batch]).to(device)
+            attention_mask = torch.stack([b['attention_mask'] for b in batch]).to(device)
+            with torch.no_grad():
+                _ = model(input_ids=input_ids, attention_mask=attention_mask)
+        torch.cuda.synchronize()
 
-    avg_time_ms = (time.time() - start_time) / runs * 1000
-    return round(avg_time_ms, 2)
-
-# def measure_gpu_memory(model, tokenizer, sample_text, device='cuda'):
-#     if device != 'cuda' or not torch.cuda.is_available():
-#         print("GPU not available. Skipping GPU memory measurement.")
-#         return None
-
-#     torch.cuda.reset_peak_memory_stats(device)
-#     model.to(device)
-#     model.eval()
-#     inputs = tokenizer(sample_text, return_tensors="pt").to(device)
-
-#     with torch.no_grad():
-#         _ = model(**inputs)
-
-#     mem_used_mb = torch.cuda.max_memory_allocated(device) / 1024**2
-#     return round(mem_used_mb, 2)
-
-# # def measure_cpu_memory(model, tokenizer, sample_text, device='cpu'):
-# #     model.to(device)
-# #     model.eval()
-# #     inputs = tokenizer(sample_text, return_tensors="pt").to(device)
-
-# #     process = psutil.Process(os.getpid())
-# #     mem_before = process.memory_info().rss
-# #     with torch.no_grad():
-# #         _ = model(**inputs)
-# #     mem_after = process.memory_info().rss
-# #     mem_used_mb = (mem_after - mem_before) / (1024 * 1024)
-# #     return round(mem_used_mb, 2)
-
-
-# def measure_cpu_memory(model, test_dataset, device="cpu", batch_size=32, max_samples=60, include_warmup=True):
-#     """
-#     Measures peak process RSS (MB) during inference over up to `max_samples` examples.
-#     Assumes each dataset item is a dict of tensors with keys like input_ids, attention_mask, (labels optional).
-#     """
-#     model.to("cpu").eval()
-#     loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)  # default collate stacks dicts of tensors
-#     proc = psutil.Process(os.getpid()) #gets my currect progress for memory usage
-
-#     # warmup phase
-#     if include_warmup:
-#         with torch.inference_mode():
-#             for batch in loader:
-#                 inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
-#                 _ = model(**inputs)
-#                 break  
-
-#     # baseline after warmup
-#     baseline = proc.memory_info().rss #gives resident set size (RSS) in bytes (physical memory)
-#     peak = baseline #maximum memory used
-#     seen = 0 #  amount of seen samples so far
-
-#     with torch.inference_mode():
-#         for batch in loader:
-#             inputs = {k: v.to(device) for k, v in batch.items() if k != "labels"}
-#             _ = model(**inputs)
-#             current_memory = proc.memory_info().rss #measures
-#             if current_memory > peak:
-#                 peak = current_memory
-
-#             seen += next(iter(inputs.values())).size(0)  # batch size from any tensor
-#             if max_samples is not None and seen >= max_samples:
-#                 break
-
-#     return round((peak - baseline) / (1024**2), 3) #MB
+        avg_time_ms = (time.time() - start_time) / runs * 1000
+        return round(avg_time_ms, 2)
+    
+    except Exception as e:
+        if "quantized" in str(e).lower():
+            print("Quantized model cannot run on GPU, skipping GPU timing.")
+            return None
+        else:
+            print(f"Unexpected GPU error: {e}")
+            return None
 
 def evaluate_model(model, test_dataset,  device: str):
 

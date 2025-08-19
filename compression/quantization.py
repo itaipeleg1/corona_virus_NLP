@@ -7,6 +7,8 @@ from config import COMPRESSION_OUTPUT_DIR
 from pathlib import Path
 from .compression_configs import compression_configs
 from models.model_config import model_configs
+import torch.nn.quantized as nnq
+import torch.nn.quantized.dynamic as nnqd
 
 def get_model_memory_size(model):
     """Calculate actual memory size in MB"""
@@ -16,6 +18,8 @@ def get_model_memory_size(model):
     for buffer in model.buffers():
         total_size += buffer.numel() * buffer.element_size()
     return total_size / (1024 ** 2)
+
+
 
 # post-training dynamic quantization - compressing only linear layers
 def quantize_model(original_model, model_key, dtype=torch.qint8, output_dir=COMPRESSION_OUTPUT_DIR):
