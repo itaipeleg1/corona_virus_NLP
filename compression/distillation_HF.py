@@ -1,9 +1,14 @@
+from zipfile import Path
 from transformers import Trainer, TrainingArguments
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 import torch
 import os
 from models.data_preparation import prepare_dataset
 import torch.nn.functional as F
+from .model_loading import load_student_model
+from pathlib import Path
+from config import COMPRESSION_OUTPUT_DIR
+import json
 
 class DistillationTrainer(Trainer):
     def __init__(self, *args, teacher_model=None, temperature=3.0, alpha=0.7, **kwargs): #setting deafult temperature and alpha
@@ -46,7 +51,11 @@ def compute_metrics(pred):
     }
 
 #excepts student_model, student_tokenizer, original_model
-def knowledge_distillation(student_key, student_model, student_tokenizer, original_model, temperature: float, alpha: float, epochs: int):
+def knowledge_distillation(student_key, model_key, student_model, student_tokenizer, original_model, temperature: float, alpha: float, epochs: int, output_dir=COMPRESSION_OUTPUT_DIR):
+    summary_path = Path(output_dir) / model_key / f"{model_key}_knowledge_distillation_summary.json"
+    training_summary = None
+
+    print("\n=== STARTING DISTILLATION ===")
     #prepare datasets
     train_ds, val_ds, _ = prepare_dataset(student_tokenizer, max_length=128) #using same tokenizer 
 
@@ -83,15 +92,17 @@ def knowledge_distillation(student_key, student_model, student_tokenizer, origin
     print("Student model size:", sum(p.numel() for p in student_model.parameters()))
 
     trained_model = trainer_distill.model
-    state_dict = trained_model.state_dict()
     accuracy = trainer_distill.evaluate()["eval_accuracy"]
     training_summary = {
-        "model": trained_model,
-        "state_dict": state_dict,
+        "model_key": model_key,
+        "student_key": student_key,
         "learning_rate": training_args.learning_rate,
         "epochs": training_args.num_train_epochs,
         "accuracy": accuracy
     }
+    # saving training summary (model saving is handled outside for all models)
+    with open(summary_path, "w") as f:
+        json.dump(training_summary, f, indent=4)
 
     return trained_model, training_summary
 

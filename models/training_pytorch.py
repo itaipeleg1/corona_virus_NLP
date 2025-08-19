@@ -144,7 +144,7 @@ def objective(trial, tokenizer, model_name, model_class, base_attr, project_name
 
     # ---- DataLoaders (no sampler; just shuffle) ----
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader   = DataLoader(eval_dataset,   batch_size=batch_size, shuffle=False)
+    val_loader   = DataLoader(eval_dataset, batch_size=batch_size, shuffle=False)
     model = model.to(device) # we initialize every model outside the objective function
 
     base_model = getattr(model, base_attr, None)
