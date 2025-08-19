@@ -1,7 +1,7 @@
 import torch
 import copy
 import pandas as pd
-from compression.model_loading import load_pt_model, load_student_model, load_compressed_models
+from compression.model_loading import load_pt_model, load_student_model, load_distilled_model
 from compression.quantization import quantize_model
 from compression.pruning import prune_attention_heads_with_wandb
 from compression.distillation_HF import knowledge_distillation
@@ -41,59 +41,52 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
         num_labels=5, 
         device=device
     )
-    
-        #load pretrained models using state dict paths
-    if not do_train:
-        print("\n=== LOADING COMPRESSED MODELS ===")
-        compressed_dict = load_compressed_models(model_key=model_key, student_key=student_key, num_labels=5, device=device)
 
-        # Unpack models and tokenizers
-        q_model, _ = compressed_dict["quantized"]
-        p_model, _ = compressed_dict["pruned"]
-        distilled_model, student_tokenizer = compressed_dict["distilled"]
-        
+    # Apply compressions (NOW we have everything loaded)
+    print("\n=== APPLYING COMPRESSIONS ===")
+    
+    # QUANTIZATION
+    print("\n--- Quantization ---")
+    q_model = quantize_model(copy.deepcopy(original_model), model_key,  dtype=torch.qint8)
+    if do_save_models:
+        save_model_state(q_model, model_key, compression_type="quantization", output_dir=COMPRESSION_OUTPUT_DIR)
+
+    # PRUNING
+    print("\n--- Pruning ---")
+    p_model, _ = prune_attention_heads_with_wandb(
+    model=original_model,
+    keep_ratio_per_layer=0.75, #ratio of head we keep after hyperparameter tuning and logging in wandb
+    log_to_wandb=False
+    )
+    #old version of global pruning - maybe switch back or make modular
+    #p_model = global_pruning_linears(copy.deepcopy(original_model), amount=amount, make_permanent=True)
+    
+    if do_save_models:
+        save_model_state(p_model, model_key, compression_type="pruning", output_dir=COMPRESSION_OUTPUT_DIR)
+
+    if not do_train:
+        student_model, student_tokenizer = load_distilled_model(model_key=model_key, device=device)
 
     else:
-        # Load student model (BEFORE doing compressions)
+        # Load student model (before compressions)
         print("\n=== LOADING STUDENT MODEL - before distillation ===")
         student_model, student_tokenizer = load_student_model(student_key=student_key, num_labels=5, device=device)
 
-        # Prepare datasets for evaluation (NOW we have both tokenizers)
-        print("\n=== PREPARING DATASETS ===")
-        _, _, test_dataset = prepare_dataset(original_tokenizer, max_length=max_length)
-        _, _, student_test_dataset = prepare_dataset(student_tokenizer, max_length=max_length)
-
-        # Apply compressions (NOW we have everything loaded)
-        print("\n=== APPLYING COMPRESSIONS ===")
-        
-        # QUANTIZATION
-        print("\n--- Quantization ---")
-        q_model = quantize_model(copy.deepcopy(original_model), model_key,  dtype=torch.qint8)
-        if do_save_models:
-            save_model_state(q_model, model_key, compression_type="quantization", output_dir=COMPRESSION_OUTPUT_DIR)
-
-        # PRUNING
-        print("\n--- Pruning ---")
-        p_model, _ = prune_attention_heads_with_wandb(
-        model=original_model,
-        keep_ratio_per_layer=0.75, #ratio of head we keep after hyperparameter tuning and logging in wandb
-        log_to_wandb=False
-    )
-        #p_model = global_pruning_linears(copy.deepcopy(original_model), amount=amount, make_permanent=True)
-        if do_save_models:
-            save_model_state(p_model, model_key, compression_type="pruning", output_dir=COMPRESSION_OUTPUT_DIR)
-        
         # KNOWLEDGE DISTILLATION
         print("\n--- Knowledge Distillation ---")
-        distilled_model, distillation_summary = knowledge_distillation(
+        distilled_model, _ = knowledge_distillation(
             student_key, model_key, student_model, student_tokenizer, original_model,
             temperature=temperature, alpha=alpha, epochs=distill_epochs, output_dir=COMPRESSION_OUTPUT_DIR
         )
         if do_save_models:
             save_model_state(distilled_model, model_key, compression_type="knowledge_distillation", output_dir=COMPRESSION_OUTPUT_DIR)
 
+    # Prepare datasets for evaluation (NOW we have both tokenizers)
+    print("\n=== PREPARING DATASETS ===")
+    _, _, test_dataset = prepare_dataset(original_tokenizer, max_length=max_length)
+    _, _, student_test_dataset = prepare_dataset(student_tokenizer, max_length=max_length)
 
-    # COMPREHENSIVE EVALUATION - here we will add a loading function
+    # COMPREHENSIVE EVALUATION 
     print("\n=== EVALUATION PHASE ===")
     
     print("\n--- Evaluating Original Model ---")
@@ -175,9 +168,9 @@ if __name__ == "__main__":
             results = main(
                 model_key=model_key, 
                 distill_epochs=distill_epochs,
-                do_train=True, #if not training - loading state dicts from the already compressed models 
-                do_save_models=True, 
-                do_save_reports=True,
+                do_train=False, #if not training - loading state dicts from the already compressed models 
+                do_save_models=False, 
+                do_save_reports=False,
                 temperature=temperature,
                 alpha=alpha
             )
