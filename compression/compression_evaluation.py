@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 from torch.utils.data import DataLoader
 
-def evaluate_performance(model, test_dataset, device, n_classes=5, batch_size=32, max_samples=60):
+def evaluate_performance(model, test_dataset, device, n_classes=5, batch_size=32, max_samples=None):
 
     print(f"Starting accuracy evaluation on {device}")
     print(f"Dataset length: {len(test_dataset)}")
@@ -76,8 +76,9 @@ def get_model_size_in_mb(model):
     total_size_mb = (param_size + buffer_size) / 1024**2
     return total_size_mb
 
-def measure_inference_time(model, test_dataset, device, runs=100, batch_size=8):
-    model.to(device)
+def measure_inference_time_cpu(model, test_dataset, device='cpu', runs=100, batch_size=8):
+    device = torch.device("cpu")
+    model.to(device) # compare all on cpu only for fair competition
     model.eval()
 
     # Warmup - avoiding inital overheasd by warming up and not measuring
@@ -100,6 +101,40 @@ def measure_inference_time(model, test_dataset, device, runs=100, batch_size=8):
     avg_time_ms = (total_time / runs) * 1000
     return round(avg_time_ms, 2)
 
+def measure_inference_time_gpu(model, test_dataset, device, runs=100, batch_size=8):
+    """
+    Measures average inference time (ms) on GPU only.
+    Returns None if CUDA is unavailable.
+    """
+    if not torch.cuda.is_available():
+        print(f"CUDA not available for model {model}, skipping GPU timing.")
+        return None
+
+    device = torch.device("cuda")
+    model = model.to(device)
+    model.eval()
+
+    # Warmup to avoid initial overhead
+    for _ in range(5):
+        batch = [test_dataset[i] for i in range(batch_size)]
+        input_ids = torch.stack([b['input_ids'] for b in batch]).to(device)
+        attention_mask = torch.stack([b['attention_mask'] for b in batch]).to(device)
+        with torch.no_grad():
+            _ = model(input_ids=input_ids, attention_mask=attention_mask)
+
+    # Timing GPU
+    torch.cuda.synchronize()
+    start_time = time.time()
+    for _ in range(runs):
+        batch = [test_dataset[i] for i in range(batch_size)]
+        input_ids = torch.stack([b['input_ids'] for b in batch]).to(device)
+        attention_mask = torch.stack([b['attention_mask'] for b in batch]).to(device)
+        with torch.no_grad():
+            _ = model(input_ids=input_ids, attention_mask=attention_mask)
+    torch.cuda.synchronize()
+
+    avg_time_ms = (time.time() - start_time) / runs * 1000
+    return round(avg_time_ms, 2)
 
 # def measure_gpu_memory(model, tokenizer, sample_text, device='cuda'):
 #     if device != 'cuda' or not torch.cuda.is_available():
@@ -167,7 +202,7 @@ def measure_inference_time(model, test_dataset, device, runs=100, batch_size=8):
 
 #     return round((peak - baseline) / (1024**2), 3) #MB
 
-def evaluate_model(model, tokenizer, test_dataset, sample_text, device: str):
+def evaluate_model(model, test_dataset,  device: str):
 
     metrics = evaluate_performance(model, test_dataset, device)
     
@@ -178,7 +213,8 @@ def evaluate_model(model, tokenizer, test_dataset, sample_text, device: str):
         "f1_weighted": metrics['f1 weighted'],
         "confusion_matrix": metrics.get('confusion_matrix', None),
         "size_MB": get_model_size_in_mb(model),
-        "inference_time_ms": measure_inference_time(model, test_dataset, device),
+        "inference_time_ms_cpu": measure_inference_time_cpu(model, test_dataset, device),
+        "inference_time_ms_gpu": measure_inference_time_gpu(model, test_dataset, device)
         # "gpu_memory": measure_gpu_memory(model, tokenizer, sample_text, device),
         # "cpu_memory": measure_cpu_memory(model, test_dataset, device),
     }

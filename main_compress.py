@@ -12,15 +12,12 @@ from config import DATA_DIR, COMPRESSION_OUTPUT_DIR
 from models.model_config import model_configs
 from models.data_preparation import prepare_dataset
 from compression.compression_configs import compression_configs
-# # Configuration variables
-# model_dict_path = "/mnt/hdd/itai/corona_virus_NLP/results/bertweet_pytorch_study_augmented/best/best_model_state_dict.pt"
-# model_key = "bertweet"  # or "covidbert"
 
 def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool, amount: float, temperature: float, alpha: float):
     print(f"Starting compression pipeline for {model_key}")
     print("="*60)
     
-    model_dict_path = compression_configs[model_key]["base_path"] #access saved best fine tuned model path
+    original_dict_path = compression_configs[model_key]["base_path"] #access saved best fine tuned model path
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
@@ -33,14 +30,14 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
     max_length = config["max_length"]
     student_key = config["student_key"]
 
-    checkpoint = torch.load(model_dict_path, map_location='cpu')
-    print(f'checkpoint keys: {checkpoint.keys()}')
+    # checkpoint = torch.load(model_dict_path, map_location='cpu')
+    # print(f'checkpoint keys: {checkpoint.keys()}')
 
     # Load original model
     print("\n=== LOADING ORIGINAL MODEL ===")
     original_model, original_tokenizer = load_pt_model(
         model_key=model_key, 
-        state_dict=torch.load(model_dict_path, map_location=device), 
+        dict_path=original_dict_path, 
         num_labels=5, 
         device=device
     )
@@ -88,7 +85,7 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
             temperature=temperature, alpha=alpha, epochs=distill_epochs, output_dir=COMPRESSION_OUTPUT_DIR
         )
         if do_save_models:
-            save_model_state(distilled_model, model_key, compression_type="knowledge_distillation", output_dir=COMPRESSION_OUTPUT_DIR, summary=distillation_summary)
+            save_model_state(distilled_model, model_key, compression_type="knowledge_distillation", output_dir=COMPRESSION_OUTPUT_DIR)
 
 
     # COMPREHENSIVE EVALUATION - here we will add a loading function
@@ -128,7 +125,7 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
         print(f"  AUC: {metrics['auc']:.4f}")
         print(f"  Confusion Matrix:\n{metrics['confusion_matrix']}")
         print(f"  Size (MB): {metrics['size_MB']:.2f}")
-        print(f"  Inference Time (ms): {metrics['inference_time_ms']}")
+        print(f"  Inference Time (ms): {metrics['inference_time_ms_cpu']}")
         # print(f"  GPU Memory (MB): {metrics.get('gpu_memory', 'N/A')}")
         # print(f"  CPU Memory (MB): {metrics['cpu_memory']}")
     
@@ -175,7 +172,7 @@ if __name__ == "__main__":
             results = main(
                 model_key=model_key, 
                 distill_epochs=distill_epochs,
-                do_train=False, #if not training - loading state dicts from the already compressed models 
+                do_train=True, #if not training - loading state dicts from the already compressed models 
                 do_save_models=True, 
                 do_save_reports=True,
                 amount=amount,

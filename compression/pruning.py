@@ -1,6 +1,8 @@
 from torch.nn.utils import prune
 import torch.nn as nn
 import copy
+import wandb
+
 def global_pruning_linears(model, amount: float, make_permanent=True):
     """
     Globally prune a fraction `amount` of weights across ALL nn.Linear layers.
@@ -34,3 +36,67 @@ def global_pruning_linears(model, amount: float, make_permanent=True):
     print(f"Pruned model sparsity: {sparsity:.2%}")
     print(f"Total pruned parameters: {zero_params} out of {total_params} ({sparsity:.2%})")
     return model
+
+
+# now a pruning function with wandb logging
+def global_pruning_linears_with_wandb(
+    model, 
+    amount: float, 
+    make_permanent: bool = True, 
+    log_to_wandb: bool = True
+):
+    """
+    Globally prune a fraction `amount` of weights across ALL nn.Linear layers
+    (excluding classifier). Optionally logs sparsity stats to wandb.
+    """
+
+    # Copy model to avoid modifying original
+    model = copy.deepcopy(model)
+
+    linear_layers = []
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Linear) and "classifier" not in name:
+            linear_layers.append((module, "weight"))
+
+    if not linear_layers:
+        print("No eligible Linear layers found for pruning.")
+        if log_to_wandb:
+            wandb.log({"pruning/amount": amount, "pruning/sparsity_linear": 0.0})
+        return model, {"sparsity_linear": 0.0, "total_linear_params": 0}
+
+    # Apply pruning
+    prune.global_unstructured(
+        linear_layers,
+        pruning_method=prune.L1Unstructured,
+        amount=amount,
+    )
+
+    # Make pruning permanent
+    if make_permanent:
+        for layer, _ in linear_layers:
+            prune.remove(layer, "weight")
+
+    # Calculate sparsity
+    total_params = sum(layer.weight.numel() for layer, _ in linear_layers)
+    zero_params = sum((layer.weight == 0).sum().item() for layer, _ in linear_layers)
+    sparsity = zero_params / total_params
+
+    # Console log
+    print(f"Pruned model sparsity: {sparsity:.2%}")
+    print(f"Total pruned parameters: {zero_params} / {total_params}")
+
+    # WandB log
+    if log_to_wandb:
+        wandb.log({
+            "pruning/amount": amount,
+            "pruning/sparsity_linear": sparsity,
+            "pruning/zero_params": zero_params,
+            "pruning/total_linear_params": total_params
+        })
+
+    return model, {
+        "sparsity_linear": sparsity,
+        "zero_params": zero_params,
+        "total_linear_params": total_params
+    }
+

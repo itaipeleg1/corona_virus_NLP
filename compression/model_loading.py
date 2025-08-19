@@ -13,7 +13,7 @@ import torch
 
 #improve it...
 
-def load_pt_model(model_key: str, state_dict: dict, num_labels: int = 5, device: str | None = None):
+def load_pt_model(model_key: str, dict_path: Path, num_labels: int = 5, device: str | None = None):
     #getting (model_dict_path: dict, model_key: str, num_labels: int = 5, device: str | None = None):
     #build model based on config
         # Load model configuration
@@ -27,6 +27,11 @@ def load_pt_model(model_key: str, state_dict: dict, num_labels: int = 5, device:
     tokenizer = tokenizer_class.from_pretrained(model_name)
     model = model_class.from_pretrained(model_name, num_labels=num_labels)
   
+    checkpoint = torch.load(dict_path, map_location=device)
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        state_dict = checkpoint["state_dict"]
+    else:
+        state_dict = checkpoint
     model.load_state_dict(state_dict) #loading saved state dict for original model
     model.to(device).eval()
     return model, tokenizer
@@ -62,7 +67,7 @@ def load_compressed_models(model_key: str, student_key: str, num_labels: int = 5
     # Quantized model
     q_model, q_tokenizer = load_pt_model(
         model_key=model_key,
-        state_dict=torch.load(c_config["quantization_path"], map_location="cpu"),
+        dict_path=c_config["quantization_path"],
         num_labels=num_labels,
         device=device
     )
@@ -70,7 +75,7 @@ def load_compressed_models(model_key: str, student_key: str, num_labels: int = 5
     #pruned model
     p_model, p_tokenizer = load_pt_model(
         model_key=model_key,
-        state_dict=torch.load(c_config["pruning_path"], map_location="cpu"),
+        dict_path=c_config["pruning_path"],
         num_labels=num_labels,
         device=device
     )
