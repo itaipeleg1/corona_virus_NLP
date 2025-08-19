@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 from torch.utils.data import DataLoader
 
-def evaluate_performance(model, test_dataset, device, n_classes=5, batch_size=32, max_samples=60):
+def evaluate_performance(model, test_dataset, device, n_classes=5, batch_size=32, max_samples=None):
 
     print(f"Starting accuracy evaluation on {device}")
     print(f"Dataset length: {len(test_dataset)}")

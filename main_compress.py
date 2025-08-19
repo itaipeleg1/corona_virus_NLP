@@ -3,7 +3,7 @@ import copy
 import pandas as pd
 from compression.model_loading import load_pt_model, load_student_model, load_compressed_models
 from compression.quantization import quantize_model
-from compression.pruning import global_pruning_linears
+from compression.pruning import prune_attention_heads_with_wandb
 from compression.distillation_HF import knowledge_distillation
 from compression.compression_evaluation import evaluate_model, save_metrics_csv
 from compression.save_compressed_models import save_model_state
@@ -13,7 +13,7 @@ from models.model_config import model_configs
 from models.data_preparation import prepare_dataset
 from compression.compression_configs import compression_configs
 
-def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool, amount: float, temperature: float, alpha: float):
+def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool, temperature: float, alpha: float):
     print(f"Starting compression pipeline for {model_key}")
     print("="*60)
     
@@ -74,7 +74,12 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
 
         # PRUNING
         print("\n--- Pruning ---")
-        p_model = global_pruning_linears(copy.deepcopy(original_model), amount=amount, make_permanent=True)
+        p_model, _ = prune_attention_heads_with_wandb(
+        model=original_model,
+        keep_ratio_per_layer=0.75, #ratio of head we keep after hyperparameter tuning and logging in wandb
+        log_to_wandb=False
+    )
+        #p_model = global_pruning_linears(copy.deepcopy(original_model), amount=amount, make_permanent=True)
         if do_save_models:
             save_model_state(p_model, model_key, compression_type="pruning", output_dir=COMPRESSION_OUTPUT_DIR)
         
@@ -156,7 +161,6 @@ if __name__ == "__main__":
     compression_types = ['quantization', 'pruning', 'knowledge_distillation']
     
     # Compression hyperparameters 
-    amount = 0.3  # pruning amount after wandb tuning
     temperature = 3.0  # distillation temperature
     alpha = 0.7  # distillation alpha
     
@@ -164,7 +168,7 @@ if __name__ == "__main__":
 
     
     # Training parameters
-    distill_epochs = 1 #to change to 5
+    distill_epochs = 5 #to change to 5
     
     try:
         for model_key in compression_configs.keys(): 
@@ -174,7 +178,6 @@ if __name__ == "__main__":
                 do_train=True, #if not training - loading state dicts from the already compressed models 
                 do_save_models=True, 
                 do_save_reports=True,
-                amount=amount,
                 temperature=temperature,
                 alpha=alpha
             )
