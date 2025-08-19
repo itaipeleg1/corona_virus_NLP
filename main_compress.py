@@ -48,8 +48,6 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
     # QUANTIZATION
     print("\n--- Quantization ---")
     q_model = quantize_model(copy.deepcopy(original_model), model_key,  dtype=torch.qint8)
-    if do_save_models:
-        save_model_state(q_model, model_key, compression_type="quantization", output_dir=COMPRESSION_OUTPUT_DIR)
 
     # PRUNING
     print("\n--- Pruning ---")
@@ -61,9 +59,6 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
     #old version of global pruning - maybe switch back or make modular
     #p_model = global_pruning_linears(copy.deepcopy(original_model), amount=amount, make_permanent=True)
     
-    if do_save_models:
-        save_model_state(p_model, model_key, compression_type="pruning", output_dir=COMPRESSION_OUTPUT_DIR)
-
     if not do_train:
         student_model, student_tokenizer = load_distilled_model(model_key=model_key, device=device)
 
