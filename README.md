@@ -1,9 +1,9 @@
 # corona_virus_NLP
-This project is a final assignment in Advanced topics in Deep Learning Course
+This project is a final assignment in Advanced topics in Advanced Topics in Deep Learning.
 
 Authors: Itai Peleg, Anat Korol Gordon
 
-In this project, we finetuned and explored various NLP techniques for analyzing COVID-19 related tweets.
+In this project, we finetuned and explored Covid-tweet-Bert and BerTweet for covid related tweet classificationclassification of sentiment
 
 # Download fine tuned models
 You can find best models in this link:

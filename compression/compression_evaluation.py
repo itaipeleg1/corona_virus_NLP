@@ -146,10 +146,10 @@ def measure_inference_time_gpu(model, test_dataset, device, runs=40, batch_size=
             print(f"Unexpected GPU error: {e}")
             return None
 
-def evaluate_model(model, test_dataset,  device: str):
+def evaluate_model(model, test_dataset,  device: str, max_samples : int = None):
 
-    metrics = evaluate_performance(model, test_dataset, device)
-    
+    metrics = evaluate_performance(model, test_dataset, device, max_samples=max_samples)
+
     return {
         "accuracy": metrics['accuracy'],
         "auc": metrics['auc'],
