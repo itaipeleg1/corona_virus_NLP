@@ -13,7 +13,7 @@ from models.model_config import model_configs
 from models.data_preparation import prepare_dataset
 from compression.compression_configs import compression_configs
 
-def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool, temperature: float, alpha: float):
+def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, do_save_reports: bool, temperature: float, alpha: float, max_samples: int = None,):
     print(f"Starting compression pipeline for {model_key}")
     print("="*60)
     
@@ -30,8 +30,9 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
     max_length = config["max_length"]
     student_key = config["student_key"]
 
-    # checkpoint = torch.load(model_dict_path, map_location='cpu')
-    # print(f'checkpoint keys: {checkpoint.keys()}')
+    # Load student model (before compressions)
+    print("\n=== LOADING STUDENT MODEL - before distillation ===")
+    student_model, student_tokenizer = load_student_model(student_key=student_key, num_labels=5, device=device)
 
     # Load original model
     print("\n=== LOADING ORIGINAL MODEL ===")
@@ -60,13 +61,10 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
     #p_model = global_pruning_linears(copy.deepcopy(original_model), amount=amount, make_permanent=True)
     
     if not do_train:
-        student_model, student_tokenizer = load_distilled_model(model_key=model_key, device=device)
+        distilled_model, _ = load_distilled_model(model_key=model_key, device=device)
 
     else:
-        # Load student model (before compressions)
-        print("\n=== LOADING STUDENT MODEL - before distillation ===")
-        student_model, student_tokenizer = load_student_model(student_key=student_key, num_labels=5, device=device)
-
+        
         # KNOWLEDGE DISTILLATION
         print("\n--- Knowledge Distillation ---")
         distilled_model, _ = knowledge_distillation(
@@ -76,26 +74,26 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
         if do_save_models:
             save_model_state(distilled_model, model_key, compression_type="knowledge_distillation", output_dir=COMPRESSION_OUTPUT_DIR)
 
-    # Prepare datasets for evaluation (NOW we have both tokenizers)
-    print("\n=== PREPARING DATASETS ===")
-    _, _, test_dataset = prepare_dataset(original_tokenizer, max_length=max_length)
-    _, _, student_test_dataset = prepare_dataset(student_tokenizer, max_length=max_length)
 
     # COMPREHENSIVE EVALUATION 
     print("\n=== EVALUATION PHASE ===")
     
+        # Prepare datasets for evaluation (NOW we have both tokenizers)
+    print("\n=== PREPARING DATASETS ===")
+    _, _, test_dataset = prepare_dataset(original_tokenizer, max_length=max_length)
+    _, _, student_test_dataset = prepare_dataset(student_tokenizer, max_length=max_length)
+
     print("\n--- Evaluating Original Model ---")
-    original_metrics = evaluate_model(original_model, test_dataset, device=device)
+    original_metrics = evaluate_model(original_model, test_dataset, device=device, max_samples=max_samples)
     
     print("\n--- Evaluating Quantized Model ---")
-    quantized_metrics = evaluate_model(q_model,  test_dataset, device='cpu')  # Quantized models must use CPU
+    quantized_metrics = evaluate_model(q_model,  test_dataset, device='cpu', max_samples=max_samples)  # Quantized models must use CPU
 
     print("\n--- Evaluating Pruned Model ---")
-    pruned_metrics = evaluate_model(p_model, test_dataset,  device=device)
+    pruned_metrics = evaluate_model(p_model, test_dataset,  device=device, max_samples=max_samples)
 
     print("\n--- Evaluating Distilled Model ---")
-    distilled_metrics = evaluate_model(distilled_model, student_test_dataset, device=device)
-    
+    distilled_metrics = evaluate_model(distilled_model, student_test_dataset, device=device, max_samples=max_samples)
 
     metrics_dict = {
         "original": original_metrics,
@@ -165,9 +163,10 @@ if __name__ == "__main__":
                 distill_epochs=distill_epochs,
                 do_train=False, #if not training - loading state dicts from the already compressed models 
                 do_save_models=False, 
-                do_save_reports=False,
+                do_save_reports=False, # reports can be viewed in "reports" folder
                 temperature=temperature,
-                alpha=alpha
+                alpha=alpha,
+                max_samples=30
             )
                 # Run compression pipeline
     
