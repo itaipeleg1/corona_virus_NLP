@@ -17,7 +17,7 @@ You can compare performance, as well as inference time
 2. nstall requirements - pip install -r requirements.txt
 3.  Dowanload state dict folders from the following links:
 
-**results**: [google drive "results folder](https://drive.google.com/drive/folders/15cztgT7NYWh6qXfY8NOyUhsl0Speb8R8?usp=sharing)
+**results**: [google drive results folder](https://drive.google.com/drive/folders/15cztgT7NYWh6qXfY8NOyUhsl0Speb8R8?usp=sharing)
 please place the folder in the project root directory, and make sure the following paths exist:
 
 PROJECT_ROOT / results / best_models (4 distinct models in the format <model_key>_study_augmented_state_dict.py)
