@@ -74,13 +74,14 @@ def get_model_size_in_mb(model):
     param_size = sum(p.numel() * p.element_size() for p in model.parameters())
     buffer_size = sum(b.numel() * b.element_size() for b in model.buffers())
     total_size_mb = (param_size + buffer_size) / 1024**2
+    print(f"total model size in MB: {total_size_mb:.2f}")
     return total_size_mb
 
 def measure_inference_time_cpu(model, test_dataset, device='cpu', runs=40, batch_size=8):
     device = torch.device("cpu")
     model.to(device) # compare all on cpu only for fair competition
     model.eval()
-
+    print("evaluating inference time on cpu")
     # Warmup - avoiding inital overheasd by warming up and not measuring
     for _ in range(5):
         batch = [test_dataset[i] for i in range(batch_size)]
@@ -99,6 +100,7 @@ def measure_inference_time_cpu(model, test_dataset, device='cpu', runs=40, batch
             _ = model(input_ids=input_ids, attention_mask=attention_mask)
     total_time = time.time() - start_time
     avg_time_ms = (total_time / runs) * 1000
+    print(f"Average inference time on CPU: {avg_time_ms:.2f} ms")
     return round(avg_time_ms, 2)
 
 def measure_inference_time_gpu(model, test_dataset, device, runs=40, batch_size=8):
@@ -110,7 +112,7 @@ def measure_inference_time_gpu(model, test_dataset, device, runs=40, batch_size=
     if not torch.cuda.is_available():
         print(f"CUDA not available for model {model}, skipping GPU timing.")
         return None
-
+    print("Evaluating inference time on GPU")
     try:
         device = torch.device("cuda")
         model = model.to(device)
