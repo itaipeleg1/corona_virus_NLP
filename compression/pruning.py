@@ -3,6 +3,7 @@ import torch.nn as nn
 import copy
 import wandb
 
+#linear unstructured pruning
 def global_pruning_linears(model, amount: float, make_permanent=True):
     """
     Globally prune a fraction `amount` of weights across ALL nn.Linear layers.
