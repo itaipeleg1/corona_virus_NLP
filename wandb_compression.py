@@ -26,12 +26,13 @@ for ratio in ratios:
                "f1 weighted": metric_dict["f1 weighted"]})
     wandb.finish()
 
-# for amt in [0.1, 0.3, 0.5, 0.7]:
-#     wandb.init(project="pruning_experiments", name=f"{model_key}_prune_{amt}")
-#     pruned_model, stats = global_pruning_linears_with_wandb(
-#         model=original_model, amount=amt, make_permanent=True, log_to_wandb=True
-#     )
-#     metric_dict = evaluate_performance(model=pruned_model, test_dataset=test_dataset, device=device)
-#     wandb.log({"accuracy": metric_dict["accuracy"],
-#                "f1 weighted": metric_dict["f1 weighted"]})
-#     wandb.finish()
+# Function to run unstructured pruning
+for amt in [0.1, 0.3, 0.5, 0.7]:
+    wandb.init(project="pruning_experiments", name=f"{model_key}_prune_{amt}")
+    pruned_model, stats = global_pruning_linears_with_wandb(
+        model=original_model, amount=amt, make_permanent=True, log_to_wandb=True
+    )
+    metric_dict = evaluate_performance(model=pruned_model, test_dataset=test_dataset, device=device)
+    wandb.log({"accuracy": metric_dict["accuracy"],
+               "f1 weighted": metric_dict["f1 weighted"]})
+    wandb.finish()

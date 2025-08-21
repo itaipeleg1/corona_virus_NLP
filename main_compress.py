@@ -142,16 +142,12 @@ def main(model_key, distill_epochs: int, do_train: bool, do_save_models: bool, d
 
 if __name__ == "__main__":
     # Configuration
-    # model_keys = ["bertweet", "covidbert"]
     model_keys = ["bertweet_HF", "bertweet_pytorch", "covidbert_HF", "bertweet_pytorch"]
     compression_types = ['quantization', 'pruning', 'knowledge_distillation']
     
     # Compression hyperparameters 
     temperature = 3.0  # distillation temperature
     alpha = 0.7  # distillation alpha
-    
-    # Current model to process (change this to switch between models)
-
     
     # Training parameters
     distill_epochs = 5 #to change to 5
@@ -166,7 +162,7 @@ if __name__ == "__main__":
                 do_save_reports=False, # reports can be viewed in "reports" folder
                 temperature=temperature,
                 alpha=alpha,
-                max_samples=30
+                max_samples=30 # max samples for evaluation, small amount for quick testing, we used the whole dataset
             )
                 # Run compression pipeline
     
