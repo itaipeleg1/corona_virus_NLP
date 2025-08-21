@@ -53,3 +53,5 @@ To look at the data exploration and visualizations we did, go to: EDA.ipynb
 Please check out "models" folder, where you can find training_HF.py - with HuggingFace Trainer, and training_pytorch.py, with a full pytorch implementation. All training was documented using Optuna and Weights and biases. (Note - If you want to run training, please create a .env file and add your wandb key as WANDB_API_KEY=your-api-key)
 ### To inspect compression techniques -
 Go to "compressions" folder, where you will be provided with functions for dynamic quantization, structured and unstructured pruning and also a Fine Tuning pipeline for knowledge distillation. Full reports of the compression process can be found in the reports folder (PROJECT_ROOT / compression / reports).
+
+Report documenting the process can be found in Root Project (displayed from github website), as "NLP_covid_classification_Itai_Anat.pdf"
