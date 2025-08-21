@@ -1,9 +1,10 @@
 # corona_virus_NLP
-This project is a final assignment in Advanced topics in Advanced Topics in Deep Learning.
+This project is a final assignment in "Advanced topics in Advanced Topics in Deep Learning".
+Dr. Eyal Kolman, Yahlli Schein
 
 Authors: Itai Peleg, Anat Korol Gordon
 
-In this project, we finetuned and explored Covid-tweet-Bert and BerTweet for covid related tweet classificationclassification of sentiment
+In this project, we finetuned and explored Covid-tweet-Bert and BerTweet for covid related tweet sentiment classification.
 
 
 # First, put our models to that test with your own tweets
