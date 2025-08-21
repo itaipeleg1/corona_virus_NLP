@@ -16,23 +16,25 @@ You can compare performance, as well as inference time
 2. nstall requirements - pip install -r requirements.txt
 3.  Dowanload state dict folders from the following links:
 
-"results": [google drive folder] (https://drive.google.com/drive/folders/15cztgT7NYWh6qXfY8NOyUhsl0Speb8R8?usp=sharing)
+**results**: [google drive folder] (https://drive.google.com/drive/folders/15cztgT7NYWh6qXfY8NOyUhsl0Speb8R8?usp=sharing)
 please place the folder in the project root directory, and make sure the following paths exist:
-PROJECT_ROOT / results / best_models
-PROJECT_ROOT / results / best_compressed
+PROJECT_ROOT / results / best_models (4 distinct models in the format <model_key>_study_augmented_state_dict.py)
+PROJECT_ROOT / results / best_compressed (2 distinct models in the format: <model_key>_knowledge_distillation_model.py)
 
-"saved_compressed": [google drive folder](https://drive.google.com/drive/folders/18gdVRAE-tWaN5vmmYwFD3Y9EeRD6iZgt?usp=sharing)
+**saved_compressed**: [google drive folder](https://drive.google.com/drive/folders/18gdVRAE-tWaN5vmmYwFD3Y9EeRD6iZgt?usp=sharing)
 Please place the folder inside the "compression" folder, so that you have: 
 Project_Root / Compression / saved_compressed / 4 sub folders, each with a state_dict and summary file, in the following pattern: <model_key>_knowledge_distillation_state_dict.py,     
 <model_key>_knowledge_distillation_summary.json
 
 4. Now, run the website app in the command line: 
-*streamlit run app.py*
-you will be directed to a locally hosted site (press "open in browser"), and after website loading you will be prompted to Enter tweet text and view the model's predictions, confidence, and also processing time. Feel free to change models in the left model bar and explore for your self.
+**streamlit run app.py**
+you will be directed to a locally hosted site (press "open in browser"), and after website loading you will be prompted to Enter tweet text and view the model's predictions, confidence, and also processing time. Feel free to change models in the left bar and explore for your self. Please note that first run will take a few minutes because models are loaded. 
+We reccomend to test a tweet and observe the differences in inference time and class distribution between teacher models ( fine tuned Covidbert and Bertweet) and fine tuned students (DistiltBert and DistilRoberta).
 
 # Further evaluation of project:
 For evaluating *ALL* of our models and receive a detailed report of their performance, accuracy metrics, size and inference time, go back to your IDE and run the command: 
-*python main_compress.py* in terminal. This will initialize  an evaluation process that will be printed for you in terminal.
+**python main_compress.py** 
+in terminal. This will initialize an evaluation process that will be printed for you in terminal.
 ### keyword arguments:
 model_key: currently runs all models, you can select one
 distill_epochs: number of epochs to train distillation if you choose to train
